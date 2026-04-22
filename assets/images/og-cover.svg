@@ -1,0 +1,10 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#F5F7F4"/>
+  <rect x="52" y="52" width="1096" height="526" rx="36" fill="#0B3D2E"/>
+  <circle cx="973" cy="154" r="172" fill="#F4C542" fill-opacity="0.12"/>
+  <circle cx="232" cy="510" r="150" fill="#F4C542" fill-opacity="0.1"/>
+  <path d="M150 294C278.667 184 378 129 448 129C518 129 590 154 664 204" stroke="#F4C542" stroke-width="9" stroke-linecap="round" stroke-dasharray="2 18"/>
+  <text x="122" y="256" fill="white" font-family="Cormorant Garamond, serif" font-size="78" font-weight="700">HireForTravel</text>
+  <text x="122" y="334" fill="white" font-family="Manrope, sans-serif" font-size="34" font-weight="700">Travel industry recruitment, built for speed and trust.</text>
+  <text x="122" y="404" fill="#D6E3DA" font-family="Manrope, sans-serif" font-size="26" font-weight="600">Fast, curated, pre-screened hiring across MICE, visa, hotels, OTAs and more.</text>
+</svg>
