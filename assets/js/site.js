@@ -90,22 +90,24 @@
       submit: `Get Candidates ${iconArrow}`,
       source: "Company",
       whatsappText: config.companyWhatsAppText || "Hi HireForTravel, I want to hire.",
-      meta: ["Travel-focused hiring", "Fast shortlisting", "Direct WhatsApp follow-up"],
+      meta: [],
       fields: [
+        { name: "contactPersonName", label: "Your Name", type: "text", required: true },
         { name: "companyName", label: "Company Name", type: "text", required: true },
-        { name: "hiringForRole", label: "Hiring For Role", type: "text", required: true },
-        { name: "location", label: "Location", type: "text", required: true },
-        { name: "contactPersonName", label: "Contact Person Name", type: "text", required: true },
-        { name: "phoneNumber", label: "Phone Number", type: "tel", required: true },
-        { name: "email", label: "Email", type: "email", required: true },
+        { name: "designation", label: "Designation", type: "text", required: true },
+        { name: "hiringForRole", label: "Roles You're Hiring For", type: "text", required: true, placeholder: "e.g., Sales, Operations, Marketing" },
         {
-          name: "hiringUrgency",
-          label: "Hiring Urgency",
+          name: "numberOfOpenings",
+          label: "Number of openings",
           type: "select",
           required: true,
-          options: ["Immediate", "1-2 weeks", "Exploring"]
-        }
+          options: ["1–2", "3–5", "6–10", "10+"]
+        },
+        { name: "location", label: "Location", type: "text", required: true, placeholder: "e.g., Delhi, Mumbai, Bangalore or Remote" },
+        { name: "phoneNumber", label: "Contact Number", type: "tel", required: true },
+        { name: "email", label: "Work Email", type: "email", required: true }
       ]
+    
     },
     candidate: {
       eyebrow: "For Candidates",
@@ -169,14 +171,14 @@
     return `
       <div class="${fieldClass}">
         <label for="${field.name}">${field.label}</label>
-        <input id="${field.name}" name="${field.name}" type="${field.type}" ${field.required ? "required" : ""} autocomplete="on">
+        <input id="${field.name}" name="${field.name}" type="${field.type}" ${field.required ? "required" : ""} ${field.placeholder ? `placeholder="${field.placeholder}"` : ""} autocomplete="on">
       </div>`;
   }
 
   function setStatus(target, message, state) {
     if (!target) return;
     target.className = `form-status is-visible ${state === "error" ? "form-status--error" : "form-status--success"}`;
-    target.textContent = message;
+    target.innerHTML = message;
   }
 
   function clearStatus(target) {
@@ -268,26 +270,38 @@
     return { ok: true, demoMode: false };
   }
 
-  function formDataToObject(form) {
+  async function formDataToObject(form) {
     const formData = new FormData(form);
     const values = {};
+    let filePromises = [];
 
     formData.forEach((value, key) => {
       if (value instanceof File) {
-        if (value.name) {
-          values[`${key}Name`] = value.name;
+        if (value.name && value.size > 0) {
+          // Read file as base64 for upload
+          const filePromise = new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              values[`${key}Data`] = e.target.result; // base64 encoded file
+              resolve();
+            };
+            reader.readAsDataURL(value);
+          });
+          filePromises.push(filePromise);
         }
         return;
       }
       values[key] = typeof value === "string" ? value.trim() : value;
     });
 
+    // Return a promise that resolves when all files are processed
+    await Promise.all(filePromises);
     return values;
   }
 
   async function handleLeadSubmit(form, statusNode, submitButton, whatsappIntent) {
     clearStatus(statusNode);
-    const payload = formDataToObject(form);
+    const payload = await formDataToObject(form);
     payload.timestamp = new Date().toISOString();
     payload.pageUrl = window.location.href;
     payload.cta = form.dataset.triggerLabel || "";
@@ -302,15 +316,10 @@
 
     try {
       await submitPayload(payload);
-      setStatus(statusNode, "We'll reach out shortly.", "success");
+      setStatus(statusNode, "<strong>Thanks! We’ll reach out in 24-48 hrs.</strong>", "success");
       form.reset();
-      if (config.autoOpenWhatsAppAfterSubmit !== false) {
-        window.setTimeout(() => {
-          window.open(getWhatsAppUrl(whatsappIntent), "_blank", "noopener");
-        }, 700);
-      }
     } catch (error) {
-      setStatus(statusNode, "Something went wrong. Please continue on WhatsApp or email us directly.", "error");
+      setStatus(statusNode, "<strong>Something went wrong</strong><br>Please connect with us directly on WhatsApp", "error");
     } finally {
       submitButton.disabled = false;
       submitButton.innerHTML = form === modalForm ? forms[activeModal || "company"].submit : `Send Inquiry ${iconArrow}`;
