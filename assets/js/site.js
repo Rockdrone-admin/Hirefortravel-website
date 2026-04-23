@@ -310,28 +310,33 @@
 
   async function handleLeadSubmit(form, statusNode, submitButton, whatsappIntent) {
     clearStatus(statusNode);
-    const payload = await formDataToObject(form);
-    payload.timestamp = new Date().toISOString();
-    payload.pageUrl = window.location.href;
-    payload.cta = form.dataset.triggerLabel || "";
-    payload.source = form.dataset.source || payload.source || "Lead";
-
-    if (!payload.source) {
-      payload.source = "Lead";
-    }
-
-    // Debug logging
-    console.log("Submitting payload:", payload);
-
     submitButton.disabled = true;
     submitButton.textContent = "Submitting...";
 
     try {
+      const payload = await formDataToObject(form);
+    payload.timestamp = new Date().toISOString();
+    payload.pageUrl = window.location.href;
+    payload.cta = form.dataset.triggerLabel || "";
+    
+    // Determine source - prefer form.dataset.source, then activeModal for modal forms
+    let source = form.dataset.source;
+    if (!source && form === modalForm && activeModal) {
+      source = forms[activeModal]?.source;
+    }
+    
+    payload.source = source || "Contact";
+
+    // Debug logging
+    console.log("Form source:", source);
+    console.log("Submitting payload:", payload);
+
       await submitPayload(payload);
       setStatus(statusNode, "<strong>Thanks! We’ll reach out in 24-48 hrs.</strong>", "success");
       form.reset();
     } catch (error) {
-      setStatus(statusNode, "<strong>Something went wrong</strong><br>Please connect with us directly on WhatsApp", "error");
+      console.error("Form submission error:", error);
+      setStatus(statusNode, `<strong>Error:</strong> ${error.message}`, "error");
     } finally {
       submitButton.disabled = false;
       submitButton.innerHTML = form === modalForm ? forms[activeModal || "company"].submit : `Send Inquiry ${iconArrow}`;
