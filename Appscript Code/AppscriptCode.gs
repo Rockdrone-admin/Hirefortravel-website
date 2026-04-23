@@ -4,18 +4,25 @@ const CANDIDATE_SHEET_ID = "1beR4ZgqfBTRIew2ekIj2iznjAbiWrgIUkUPmzzeWMmc";
 
 // 🔍 BetterStack Config
 const BETTERSTACK_TOKEN = "wBYGCzXtf9Q1hJ8V6KYzoWVe";
-const BETTERSTACK_ENDPOINT = "https://in.logs.betterstack.com/v1/logs";
+const BETTERSTACK_ENDPOINT = "https://s2392660.eu-fsn-3.betterstackdata.com";
 
 // 🚀 Send log to BetterStack
-function sendToBetterStack(level, step, message, data) {
+function sendToBetterStack(step, message, data) {
   try {
+    // Format: dt as "YYYY-MM-DD HH:MM:SS UTC"
+    const now = new Date();
+    const isoString = now.toISOString();
+    const dtFormat = isoString.replace('T', ' ').replace('Z', ' UTC').substring(0, 19) + ' UTC';
+    
+    // Build message with step and data
+    const fullMessage = "[" + step + "] " + message + (data ? " | Data: " + JSON.stringify(data).substring(0, 200) : "");
+    
     const payload = {
-      "level": level,
-      "dt": new Date().toISOString(),
-      "step": step,
-      "message": message,
-      "data": data || {}
+      "dt": dtFormat,
+      "message": fullMessage
     };
+
+    Logger.log("📤 Sending to BetterStack: " + JSON.stringify(payload));
 
     const options = {
       method: "post",
@@ -30,8 +37,9 @@ function sendToBetterStack(level, step, message, data) {
     const response = UrlFetchApp.fetch(BETTERSTACK_ENDPOINT, options);
     const responseCode = response.getResponseCode();
     
+    Logger.log("✅ BetterStack response: " + responseCode);
     if (responseCode !== 200 && responseCode !== 201) {
-      Logger.log("⚠️ BetterStack log failed: " + responseCode);
+      Logger.log("⚠️ BetterStack response: " + response.getContentText());
     }
   } catch (error) {
     Logger.log("❌ BetterStack error: " + error.toString());
@@ -49,18 +57,8 @@ function debugLog(step, message, data) {
     Logger.log("  📦 Data: " + JSON.stringify(data));
   }
   
-  // Determine log level from message
-  let level = "info";
-  if (message.includes("ERROR") || message.includes("❌")) {
-    level = "error";
-  } else if (message.includes("⚠️")) {
-    level = "warning";
-  } else if (message.includes("✅")) {
-    level = "info";
-  }
-  
   // Send to BetterStack
-  sendToBetterStack(level, step, message, data);
+  sendToBetterStack(step, message, data);
 }
 
 // ✅ Dynamic sheet selector
@@ -446,4 +444,33 @@ function createErrorResponse(errorMessage) {
       error: errorMessage
     }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+// 🧪 TEST FUNCTION - Run this to test logging before deploying
+function testLog() {
+  Logger.log("=====================================");
+  Logger.log("🧪 TESTING LOGGING FUNCTIONALITY");
+  Logger.log("=====================================");
+  
+  try {
+    Logger.log("\n📝 Test 1: Basic log message");
+    debugLog("testLog", "✓ This is a test message", null);
+    
+    Logger.log("\n📝 Test 2: Log with data");
+    debugLog("testLog", "✓ Testing with data object", { testValue: "hello", number: 123 });
+    
+    Logger.log("\n📝 Test 3: Error log");
+    debugLog("testLog", "❌ This is a test error message", { errorCode: 500 });
+    
+    Logger.log("\n📝 Test 4: Warning log");
+    debugLog("testLog", "⚠️ This is a test warning", { warningType: "validation" });
+    
+    Logger.log("\n✅ All test logs sent to BetterStack!");
+    Logger.log("📊 Check your BetterStack dashboard at: https://app.betterstack.com");
+    Logger.log("=====================================\n");
+    
+  } catch (error) {
+    Logger.log("❌ Test failed: " + error.toString());
+  }
 }
