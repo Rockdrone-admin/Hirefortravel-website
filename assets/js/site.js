@@ -130,6 +130,7 @@
           options: ["0-1 years", "1-3 years", "3-5 years", "5-8 years", "8+ years"]
         },
         { name: "preferredRole", label: "Preferred Role", type: "text", required: true },
+        { name: "location", label: "Location", type: "text", required: false, placeholder: "e.g., Delhi, Mumbai, Remote" },
         {
           name: "cvFile",
           label: "Upload CV (optional)",
@@ -252,6 +253,7 @@
     const webhookConfigured = webhookUrl && !/REPLACE_WITH_YOUR_WEBHOOK_ID/i.test(webhookUrl);
 
     if (!webhookConfigured) {
+      console.log("Demo mode: webhook not configured");
       return { ok: true, demoMode: true };
     }
 
@@ -264,9 +266,11 @@
     });
 
     if (!response.ok) {
+      console.error("Webhook request failed:", response.status, response.statusText);
       throw new Error("Webhook request failed");
     }
 
+    console.log("Payload submitted successfully");
     return { ok: true, demoMode: false };
   }
 
@@ -278,6 +282,11 @@
     formData.forEach((value, key) => {
       if (value instanceof File) {
         if (value.name && value.size > 0) {
+          // File size limit: 1.9 MB (converts to ~2.5 MB when base64 encoded)
+          const maxSizeMB = 1.9;
+          if (value.size > maxSizeMB * 1024 * 1024) {
+            throw new Error(`File size exceeds ${maxSizeMB}MB limit. Please upload a smaller file.`);
+          }
           // Read file as base64 for upload
           const filePromise = new Promise((resolve) => {
             const reader = new FileReader();
@@ -310,6 +319,9 @@
     if (!payload.source) {
       payload.source = "Lead";
     }
+
+    // Debug logging
+    console.log("Submitting payload:", payload);
 
     submitButton.disabled = true;
     submitButton.textContent = "Submitting...";

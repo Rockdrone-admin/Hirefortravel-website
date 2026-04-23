@@ -1,3 +1,3 @@
 git add .
-git commit -m "quick update"
+git commit -m "update description"
 git push
