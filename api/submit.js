@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   try {
     const googleAppsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL || 
-      'https://script.google.com/macros/s/AKfycbzzoueN4EUtH6GYSP7AC_5_sIBZIO3fAJthAT_1JK_VAsKAFEdpjy0ycLb2HRA9G9IULg/exec';
+      'https://script.google.com/macros/s/AKfycbxq6ehM6-Y-bV86XuY1KUUIZjJ7XgQu3UVwj5HORgNxY92cSnPqB74Vohzw-MCZzntTKA/exec';
 
     // Forward the request to Google Apps Script
     const response = await fetch(googleAppsScriptUrl, {
