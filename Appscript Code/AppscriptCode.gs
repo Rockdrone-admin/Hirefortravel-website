@@ -2,14 +2,65 @@
 const COMPANY_SHEET_ID = "1gdIxGS9H80avxGqxYdtJziwFKwRkL4sPZfeU2rr4UVs";
 const CANDIDATE_SHEET_ID = "1beR4ZgqfBTRIew2ekIj2iznjAbiWrgIUkUPmzzeWMmc";
 
-// 🔍 Debug Helper
+// 🔍 BetterStack Config
+const BETTERSTACK_TOKEN = "wBYGCzXtf9Q1hJ8V6KYzoWVe";
+const BETTERSTACK_ENDPOINT = "https://in.logs.betterstack.com/v1/logs";
+
+// 🚀 Send log to BetterStack
+function sendToBetterStack(level, step, message, data) {
+  try {
+    const payload = {
+      "level": level,
+      "dt": new Date().toISOString(),
+      "step": step,
+      "message": message,
+      "data": data || {}
+    };
+
+    const options = {
+      method: "post",
+      headers: {
+        "Authorization": "Bearer " + BETTERSTACK_TOKEN,
+        "Content-Type": "application/json"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(BETTERSTACK_ENDPOINT, options);
+    const responseCode = response.getResponseCode();
+    
+    if (responseCode !== 200 && responseCode !== 201) {
+      Logger.log("⚠️ BetterStack log failed: " + responseCode);
+    }
+  } catch (error) {
+    Logger.log("❌ BetterStack error: " + error.toString());
+  }
+}
+
+// 🔍 Debug Helper - Logs to both AppScript and BetterStack
 function debugLog(step, message, data) {
   const timestamp = new Date().toISOString();
   const logEntry = "[" + timestamp + "] " + step + ": " + message;
-  console.log(logEntry);
+  
+  // Log to AppScript console
+  Logger.log(logEntry);
   if (data !== undefined) {
-    console.log("  📦 Data: " + JSON.stringify(data));
+    Logger.log("  📦 Data: " + JSON.stringify(data));
   }
+  
+  // Determine log level from message
+  let level = "info";
+  if (message.includes("ERROR") || message.includes("❌")) {
+    level = "error";
+  } else if (message.includes("⚠️")) {
+    level = "warning";
+  } else if (message.includes("✅")) {
+    level = "info";
+  }
+  
+  // Send to BetterStack
+  sendToBetterStack(level, step, message, data);
 }
 
 // ✅ Dynamic sheet selector
