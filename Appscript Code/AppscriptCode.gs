@@ -275,11 +275,11 @@ function handleCandidateSubmission(payload) {
     debugLog("handleCandidateSubmission", "Step 3: Processing CV file");
     let driveLink = "";
     
-    if (payload.cvData && payload.cvData !== "") {
-      debugLog("handleCandidateSubmission", "  CV data found, size: " + payload.cvData.length + " bytes");
+    if (payload.cvFileData && payload.cvFileData !== "") {
+      debugLog("handleCandidateSubmission", "  CV data found, size: " + payload.cvFileData.length + " bytes");
       try {
         debugLog("handleCandidateSubmission", "  Uploading CV to Google Drive...");
-        driveLink = uploadCVToGoogleDrive(payload.cvData, payload.fullName);
+        driveLink = uploadCVToGoogleDrive(payload.cvFileData, payload.fullName, payload.cvFileName);
         debugLog("handleCandidateSubmission", "  ✓ CV uploaded successfully", { link: driveLink });
       } catch (cvError) {
         debugLog("handleCandidateSubmission", "  ⚠️  CV upload failed, continuing without CV", { error: cvError.toString() });
@@ -327,8 +327,8 @@ function handleCandidateSubmission(payload) {
 
 
 // 📁 CV Upload
-function uploadCVToGoogleDrive(fileData, candidateName) {
-  debugLog("uploadCVToGoogleDrive", "📁 START - CV Upload", { candidateName: candidateName, fileDataLength: fileData ? fileData.length : 0 });
+function uploadCVToGoogleDrive(fileData, candidateName, originalFileName) {
+  debugLog("uploadCVToGoogleDrive", "📁 START - CV Upload", { candidateName: candidateName, originalFileName: originalFileName, fileDataLength: fileData ? fileData.length : 0 });
   
   try {
     // Step 1: Validate file data
@@ -340,7 +340,7 @@ function uploadCVToGoogleDrive(fileData, candidateName) {
 
     // Step 2: Get root folder
     debugLog("uploadCVToGoogleDrive", "Step 2: Accessing Google Drive");
-    const rootFolder = DriveApp.getRootFolderForActiveUser();
+    const rootFolder = DriveApp.getRootFolder();
     debugLog("uploadCVToGoogleDrive", "  ✓ Root folder accessed");
 
     // Step 3: Find or create CV folder
@@ -369,20 +369,40 @@ function uploadCVToGoogleDrive(fileData, candidateName) {
     const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
     debugLog("uploadCVToGoogleDrive", "  ✓ MIME type detected: " + mimeType);
 
-    // Step 5: Determine file extension
-    debugLog("uploadCVToGoogleDrive", "Step 5: Determining file extension");
-    let extension = ".pdf";
-    if (mimeType.includes("word") || mimeType.includes("officedocument")) {
-      extension = mimeType.includes("spreadsheet") ? ".xlsx" : ".docx";
-    } else if (mimeType.includes("pdf")) {
-      extension = ".pdf";
+    // Step 5: Determine file name with timestamp to avoid conflicts
+    debugLog("uploadCVToGoogleDrive", "Step 5: Determining file name with timestamp");
+    let fileName;
+    const timestamp = new Date().getTime();
+    
+    if (originalFileName && originalFileName.trim() !== "") {
+      // Use original file name with timestamp to avoid conflicts
+      const lastDotIndex = originalFileName.lastIndexOf(".");
+      let nameWithoutExt, extension;
+      
+      if (lastDotIndex > 0) {
+        nameWithoutExt = originalFileName.substring(0, lastDotIndex);
+        extension = originalFileName.substring(lastDotIndex);
+      } else {
+        nameWithoutExt = originalFileName;
+        extension = ".pdf";
+      }
+      
+      fileName = nameWithoutExt + "_" + timestamp + extension;
+      debugLog("uploadCVToGoogleDrive", "  ✓ Using original file name with timestamp: " + fileName);
+    } else {
+      // Fall back to generated file name
+      let extension = ".pdf";
+      if (mimeType.includes("word") || mimeType.includes("officedocument")) {
+        extension = mimeType.includes("spreadsheet") ? ".xlsx" : ".docx";
+      } else if (mimeType.includes("pdf")) {
+        extension = ".pdf";
+      }
+      fileName = "CV_" + (candidateName || "Candidate") + "_" + timestamp + extension;
+      debugLog("uploadCVToGoogleDrive", "  ✓ Generated file name: " + fileName);
     }
-    debugLog("uploadCVToGoogleDrive", "  ✓ Extension determined: " + extension);
 
     // Step 6: Create blob
     debugLog("uploadCVToGoogleDrive", "Step 6: Creating blob from base64");
-    const timestamp = new Date().getTime();
-    const fileName = "CV_" + (candidateName || "Candidate") + "_" + timestamp + extension;
     
     try {
       const decodedBytes = Utilities.base64Decode(parts[1]);

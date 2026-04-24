@@ -961,6 +961,28 @@ button {
   box-shadow: 0 0 0 4px rgba(17, 84, 64, 0.08);
 }
 
+.field--error input,
+.field--error select,
+.field--error textarea {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.08);
+}
+
+.field--error input:focus,
+.field--error select:focus,
+.field--error textarea:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+}
+
+.field__error {
+  display: block;
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
 .field__hint {
   font-size: 0.8rem;
   color: var(--ink-600);

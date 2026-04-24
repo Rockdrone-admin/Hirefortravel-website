@@ -94,8 +94,8 @@
       fields: [
         { name: "contactPersonName", label: "Your Name", type: "text", required: true },
         { name: "companyName", label: "Company Name", type: "text", required: true },
-        { name: "designation", label: "Designation", type: "text", required: true },
-        { name: "hiringForRole", label: "Roles You're Hiring For", type: "text", required: true, placeholder: "e.g., Sales, Operations, Marketing" },
+        { name: "designation", label: "Your Designation", type: "text", required: true },
+        { name: "hiringForRole", label: "Roles You're Hiring For *", type: "text", required: true, placeholder: "e.g., Sales, Operations, Marketing" },
         {
           name: "numberOfOpenings",
           label: "Number of openings",
@@ -164,9 +164,9 @@
         .concat(field.options.map((option) => `<option value="${option}">${option}</option>`))
         .join("");
       return `
-        <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}">
+        <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
           <label for="${field.name}">${field.label}</label>
-          <select id="${field.name}" name="${field.name}" ${field.required ? "required" : ""}>
+          <select id="${field.name}" name="${field.name}" ${field.required ? "required" : ""} style="border-color: inherit;">
             ${options}
           </select>
         </div>`;
@@ -174,17 +174,17 @@
 
     if (field.type === "file") {
       return `
-        <div class="${fieldClass} field--full" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}">
+        <div class="${fieldClass} field--full" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
           <label for="${field.name}">${field.label}</label>
-          <input id="${field.name}" name="${field.name}" type="file" ${field.required ? "required" : ""} ${field.accept ? `accept="${field.accept}"` : ""}>
+          <input id="${field.name}" name="${field.name}" type="file" ${field.required ? "required" : ""} ${field.accept ? `accept="${field.accept}"` : ""} style="border-color: inherit;">
           <span class="field__hint">${field.required ? "PDF and Word formats only" : "If your webhook only accepts JSON, the selected file name is logged and the actual CV can be shared on WhatsApp."}</span>
         </div>`;
     }
 
     return `
-      <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}">
+      <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
         <label for="${field.name}">${field.label}</label>
-        <input id="${field.name}" name="${field.name}" type="${field.type}" ${field.required ? "required" : ""} ${field.placeholder ? `placeholder="${field.placeholder}"` : ""} autocomplete="on">
+        <input id="${field.name}" name="${field.name}" type="${field.type}" ${field.required ? "required" : ""} ${field.placeholder ? `placeholder="${field.placeholder}"` : ""} autocomplete="on" style="border-color: inherit;">
       </div>`;
   }
 
@@ -198,6 +198,62 @@
     if (!target) return;
     target.className = "form-status";
     target.textContent = "";
+  }
+
+  function validateForm(form) {
+    let isValid = true;
+    
+    // Clear previous error states
+    form.querySelectorAll('.field--error').forEach(field => {
+      field.classList.remove('field--error');
+      const errorMsg = field.querySelector('.field__error');
+      if (errorMsg) {
+        errorMsg.remove();
+      }
+    });
+
+    // Validate each field
+    form.querySelectorAll('input, select, textarea').forEach(field => {
+      // Skip checkboxes from validation
+      if (field.type === 'checkbox') return;
+      
+      const container = field.closest('.field, [class*="field"]') || field.parentElement;
+      const isRequired = field.hasAttribute('required');
+      const isEmpty = !field.value || field.value.trim() === '';
+      
+      // Check if field container is visible
+      let isVisible = true;
+      if (container) {
+        const computedStyle = window.getComputedStyle(container);
+        isVisible = computedStyle.display !== 'none';
+      }
+
+      // Only validate if field is visible and required
+      if (isVisible && isRequired && isEmpty) {
+        isValid = false;
+        
+        // Add error styling
+        if (container) {
+          container.classList.add('field--error');
+          
+          // Add error message if it doesn't exist
+          if (!container.querySelector('.field__error')) {
+            const errorMsg = document.createElement('span');
+            errorMsg.className = 'field__error';
+            errorMsg.textContent = '* is required';
+            
+            const hint = container.querySelector('.field__hint');
+            if (hint) {
+              hint.parentNode.insertBefore(errorMsg, hint);
+            } else {
+              container.appendChild(errorMsg);
+            }
+          }
+        }
+      }
+    });
+
+    return isValid;
   }
 
   function getWhatsAppUrl(intentText) {
@@ -331,6 +387,7 @@
             const reader = new FileReader();
             reader.onload = (e) => {
               values[`${key}Data`] = e.target.result; // base64 encoded file
+              values[`${key}Name`] = value.name; // preserve original file name and extension
               resolve();
             };
             reader.readAsDataURL(value);
@@ -401,6 +458,13 @@
         });
       });
       
+      // Validate form before submission
+      if (!validateForm(modalForm)) {
+        setStatus(modalStatus, "<strong>Error:</strong> Please fill in all required fields.", "error");
+        return;
+      }
+      
+      clearStatus(modalStatus);
       const formType = modalForm.dataset.intent || "company";
       const whatsappIntent = forms[formType]?.whatsappText || config.generalWhatsAppText;
       await handleLeadSubmit(modalForm, modalStatus, modalSubmitLabel, whatsappIntent);
@@ -413,6 +477,14 @@
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      
+      // Validate form before submission
+      if (!validateForm(form)) {
+        setStatus(statusNode, "<strong>Error:</strong> Please fill in all required fields.", "error");
+        return;
+      }
+      
+      clearStatus(statusNode);
       form.dataset.triggerLabel = "Contact Page Form";
       form.dataset.source = form.querySelector("[name='inquiryType']")?.value || "Contact";
       const selectedIntent = form.dataset.source === "Candidate" ? config.candidateWhatsAppText : config.companyWhatsAppText;
