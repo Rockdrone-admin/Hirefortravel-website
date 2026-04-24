@@ -116,28 +116,29 @@
       submit: `Apply Now ${iconArrow}`,
       source: "Candidate",
       whatsappText: config.candidateWhatsAppText || "Hi HireForTravel, I want to apply for travel jobs.",
-      meta: ["Travel-only opportunities", "Short forms", "WhatsApp updates available"],
+      meta: [],
       fields: [
         { name: "fullName", label: "Full Name", type: "text", required: true },
-        { name: "phoneNumber", label: "Phone Number", type: "tel", required: true },
+        { name: "phoneNumber", label: "Contact Number", type: "tel", required: true },
         { name: "email", label: "Email", type: "email", required: true },
-        { name: "currentRole", label: "Current Role", type: "text", required: true },
-        {
-          name: "experience",
-          label: "Experience",
-          type: "select",
-          required: true,
-          options: ["0-1 years", "1-3 years", "3-5 years", "5-8 years", "8+ years"]
-        },
-        { name: "preferredRole", label: "Preferred Role", type: "text", required: true },
-        { name: "location", label: "Location", type: "text", required: false, placeholder: "e.g., Delhi, Mumbai, Remote" },
+        { name: "location", label: "Location", type: "text", required: true, placeholder: "e.g., Delhi, Mumbai, Bangalore or Remote" },
+        { name: "applyingFor", label: "Applying for", type: "text", required: true, placeholder: "e.g., Sales, Operations, Marketing" },
         {
           name: "cvFile",
-          label: "Upload CV (optional)",
+          label: "Upload CV",
           type: "file",
-          required: false,
+          required: true,
           accept: ".pdf,.doc,.docx"
-        }
+        },
+        {
+          name: "referredByCheckbox",
+          label: "Referred By (Optional)",
+          type: "checkbox",
+          required: false,
+          conditional: true
+        },
+        { name: "referrerName", label: "Referrer's Name", type: "text", required: false, conditional: "referredByCheckbox" },
+        { name: "referrerContact", label: "Referrer's Contact Number", type: "tel", required: false, conditional: "referredByCheckbox" }
       ]
     }
   };
@@ -147,12 +148,23 @@
 
   function buildField(field) {
     const fieldClass = "field";
+    
+    if (field.type === "checkbox") {
+      return `
+        <div class="${fieldClass}">
+          <label for="${field.name}" style="display: flex; align-items: center; gap: 0.5rem;">
+            <input id="${field.name}" name="${field.name}" type="checkbox" style="width: auto; margin: 0;">
+            <span>${field.label}</span>
+          </label>
+        </div>`;
+    }
+    
     if (field.type === "select") {
       const options = ['<option value="">Select</option>']
         .concat(field.options.map((option) => `<option value="${option}">${option}</option>`))
         .join("");
       return `
-        <div class="${fieldClass}">
+        <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}">
           <label for="${field.name}">${field.label}</label>
           <select id="${field.name}" name="${field.name}" ${field.required ? "required" : ""}>
             ${options}
@@ -162,15 +174,15 @@
 
     if (field.type === "file") {
       return `
-        <div class="${fieldClass} field--full">
+        <div class="${fieldClass} field--full" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}">
           <label for="${field.name}">${field.label}</label>
-          <input id="${field.name}" name="${field.name}" type="file" ${field.accept ? `accept="${field.accept}"` : ""}>
-          <span class="field__hint">If your webhook only accepts JSON, the selected file name is logged and the actual CV can be shared on WhatsApp.</span>
+          <input id="${field.name}" name="${field.name}" type="file" ${field.required ? "required" : ""} ${field.accept ? `accept="${field.accept}"` : ""}>
+          <span class="field__hint">${field.required ? "PDF and Word formats only" : "If your webhook only accepts JSON, the selected file name is logged and the actual CV can be shared on WhatsApp."}</span>
         </div>`;
     }
 
     return `
-      <div class="${fieldClass}">
+      <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}">
         <label for="${field.name}">${field.label}</label>
         <input id="${field.name}" name="${field.name}" type="${field.type}" ${field.required ? "required" : ""} ${field.placeholder ? `placeholder="${field.placeholder}"` : ""} autocomplete="on">
       </div>`;
@@ -213,6 +225,33 @@
     modalWhatsApp.textContent = type === "company" ? "Discuss on WhatsApp" : "Send profile on WhatsApp";
     clearStatus(modalStatus);
     modalForm.reset();
+    
+    // Handle conditional fields for checkbox
+    const checkboxes = modalFields.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+      const checkboxName = checkbox.name;
+      const conditionalFields = modalFields.querySelectorAll(`[data-conditional="${checkboxName}"]`);
+      
+      // Set initial state
+      conditionalFields.forEach(field => {
+        field.style.display = checkbox.checked ? '' : 'none';
+      });
+      
+      // Add change listener
+      checkbox.addEventListener('change', () => {
+        conditionalFields.forEach(field => {
+          field.style.display = checkbox.checked ? '' : 'none';
+          // Update required attribute based on checkbox state
+          const inputs = field.querySelectorAll('input, select, textarea');
+          inputs.forEach(input => {
+            if (checkbox.checked && field.dataset.conditional === checkboxName) {
+              input.removeAttribute('required');
+            }
+          });
+        });
+      });
+    });
+    
     modalRoot.classList.add("is-open");
     modalRoot.setAttribute("aria-hidden", "false");
     document.body.classList.add("is-locked");
@@ -282,8 +321,8 @@
     formData.forEach((value, key) => {
       if (value instanceof File) {
         if (value.name && value.size > 0) {
-          // File size limit: 1.9 MB (converts to ~2.5 MB when base64 encoded)
-          const maxSizeMB = 1.9;
+          // File size limit: 3 MB (converts to ~4 MB when base64 encoded)
+          const maxSizeMB = 3;
           if (value.size > maxSizeMB * 1024 * 1024) {
             throw new Error(`File size exceeds ${maxSizeMB}MB limit. Please upload a smaller file.`);
           }
@@ -346,6 +385,22 @@
   if (modalForm) {
     modalForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      
+      // Update required attributes for conditional fields before validation
+      const fields = modalForm.querySelectorAll('[data-conditional]');
+      fields.forEach(field => {
+        const inputs = field.querySelectorAll('input, select, textarea');
+        const isVisible = field.style.display !== 'none';
+        inputs.forEach(input => {
+          if (isVisible) {
+            input.setAttribute('required', 'required');
+          } else {
+            input.removeAttribute('required');
+            input.value = ''; // Clear value if hidden
+          }
+        });
+      });
+      
       const formType = modalForm.dataset.intent || "company";
       const whatsappIntent = forms[formType]?.whatsappText || config.generalWhatsAppText;
       await handleLeadSubmit(modalForm, modalStatus, modalSubmitLabel, whatsappIntent);

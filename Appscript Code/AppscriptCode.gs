@@ -295,13 +295,14 @@ function handleCandidateSubmission(payload) {
       payload.cta || "",
       payload.pageUrl || "",
       payload.fullName || "",
-      payload.currentRole || "",
-      payload.experience || "",
-      payload.preferredRole || "",
-      payload.location || "",
       payload.phoneNumber || "",
       payload.email || "",
-      driveLink || ""
+      payload.location || "",
+      payload.applyingFor || "",
+      driveLink || "",
+      payload.referredByCheckbox ? "Yes" : "No",
+      payload.referrerName || "",
+      payload.referrerContact || ""
     ];
     debugLog("handleCandidateSubmission", "  ✓ Row built with " + row.length + " columns", { sample: row.slice(0, 3) });
 
