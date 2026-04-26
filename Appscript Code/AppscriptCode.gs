@@ -243,6 +243,24 @@ function handleCompanySubmission(payload) {
     const updatedLastRow = sheet.getLastRow();
     debugLog("handleCompanySubmission", "  ✓ Sheet now has " + updatedLastRow + " rows");
 
+    // Step 6: Send internal email to team
+    debugLog("handleCompanySubmission", "Step 6: Sending internal email to team");
+    try {
+      sendCompanyLeadInternalEmail(payload);
+      debugLog("handleCompanySubmission", "  ✓ Internal email sent");
+    } catch (emailError) {
+      debugLog("handleCompanySubmission", "  ⚠️  Failed to send internal email, continuing", { error: emailError.toString() });
+    }
+
+    // Step 7: Send external acknowledgment email to client
+    debugLog("handleCompanySubmission", "Step 7: Sending acknowledgment email to client");
+    try {
+      sendCompanyAcknowledgmentEmail(payload);
+      debugLog("handleCompanySubmission", "  ✓ Acknowledgment email sent");
+    } catch (emailError) {
+      debugLog("handleCompanySubmission", "  ⚠️  Failed to send acknowledgment email, continuing", { error: emailError.toString() });
+    }
+
     debugLog("handleCompanySubmission", "🟢 END - Success");
     return createSuccessResponse();
 
@@ -315,6 +333,26 @@ function handleCandidateSubmission(payload) {
     debugLog("handleCandidateSubmission", "Step 6: Verifying submission");
     const updatedLastRow = sheet.getLastRow();
     debugLog("handleCandidateSubmission", "  ✓ Sheet now has " + updatedLastRow + " rows");
+
+    // Step 7: Send internal email to team
+    debugLog("handleCandidateSubmission", "Step 7: Sending internal email to team");
+    try {
+      // Add CV link to payload for email
+      const payloadWithCVLink = Object.assign({}, payload, { cvLink: driveLink });
+      sendCandidateApplicationInternalEmail(payloadWithCVLink);
+      debugLog("handleCandidateSubmission", "  ✓ Internal application email sent");
+    } catch (emailError) {
+      debugLog("handleCandidateSubmission", "  ⚠️  Failed to send internal email, continuing", { error: emailError.toString() });
+    }
+
+    // Step 8: Send external acknowledgment email to candidate
+    debugLog("handleCandidateSubmission", "Step 8: Sending acknowledgment email to candidate");
+    try {
+      sendCandidateAcknowledgmentEmail(payload);
+      debugLog("handleCandidateSubmission", "  ✓ Acknowledgment email sent to candidate");
+    } catch (emailError) {
+      debugLog("handleCandidateSubmission", "  ⚠️  Failed to send acknowledgment email, continuing", { error: emailError.toString() });
+    }
 
     debugLog("handleCandidateSubmission", "🟡 END - Success");
     return createSuccessResponse();
@@ -444,6 +482,254 @@ function uploadCVToGoogleDrive(fileData, candidateName, originalFileName) {
   }
 }
 
+
+// 📧 EMAIL CONFIG
+const INTERNAL_EMAIL = "Contact@hirefortravel.com";
+const WHATSAPP_NUMBER = "+919266788980"; // For creating WhatsApp links
+const FOUNDER_PHONE = "+91 92667 88980";
+const FOUNDER_EMAIL = "Contact@hirefortravel.com";
+const FOUNDER_NAME = "Shwetambri Soni";
+
+// 📧 Send Internal Email - Company Lead
+function sendCompanyLeadInternalEmail(payload) {
+  debugLog("sendCompanyLeadInternalEmail", "📧 START - Sending internal company lead email");
+  
+  try {
+    const companyName = payload.companyName || "[No Company Name]";
+    const contactName = payload.contactPersonName || "[No Contact Name]";
+    const hiringFor = payload.hiringForRole || "[No Role Specified]";
+    const openings = payload.numberOfOpenings || "[No Number Specified]";
+    const designation = payload.designation || "[No Designation]";
+    const phoneNumber = payload.phoneNumber || "[No Phone]";
+    const email = payload.email || "[No Email]";
+    const location = payload.location || "[No Location]";
+    
+    const whatsappLink = "https://wa.me/" + WHATSAPP_NUMBER.replace(/\D/g, "");
+    const callLink = "tel:" + phoneNumber.replace(/\D/g, "");
+    const whatsappChatLink = "https://wa.me/" + phoneNumber.replace(/\D/g, "");
+    
+    const subject = "New Client Lead – " + companyName + " | " + hiringFor + " | " + openings;
+    
+    const htmlBody = 
+      "<div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 14px;'>" +
+      "<h2 style='color: #1a73e8; font-size: 18px;'>New Client Lead Received on Website</h2>" +
+      "<hr style='border: none; border-top: 2px solid #1a73e8; margin: 20px 0;'>" +
+      
+      "<h3 style='font-size: 14px;'>Company Name:</h3>" +
+      "<p style='font-weight: bold; font-size: 14px;'>" + escapeHtml(companyName) + "</p>" +
+      
+      "<h3 style='font-size: 14px;'>Contact Person</h3>" +
+      "<p style='font-size: 14px;'><strong>Name:</strong> " + escapeHtml(contactName) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Designation:</strong> " + escapeHtml(designation) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Phone Number:</strong> " + escapeHtml(phoneNumber) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Email:</strong> " + escapeHtml(email) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Location:</strong> " + escapeHtml(location) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Number of Openings:</strong> " + escapeHtml(openings) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Hiring for Roles:</strong> " + escapeHtml(hiringFor) + "</p>" +
+      
+      "<h3 style='font-size: 14px;'>Quick Action Links:</h3>" +
+      "<p style='font-size: 14px;'>" +
+      "<a href='" + callLink + "' style='display: inline-block; padding: 8px 15px; margin-right: 10px; background-color: #34a853; color: white; text-decoration: none; border-radius: 4px;'>📞 Click to call</a>" +
+      "<a href='" + whatsappChatLink + "' style='display: inline-block; padding: 8px 15px; background-color: #25d366; color: white; text-decoration: none; border-radius: 4px;'>💬 Click to WhatsApp</a>" +
+      "</p>" +
+            
+      "<h3 style='font-size: 14px;'>Reference Links</h3>" +
+      "<p style='font-size: 14px;'><a href='https://docs.google.com/spreadsheets/d/1gdIxGS9H80avxGqxYdtJziwFKwRkL4sPZfeU2rr4UVs/edit?gid=0#gid=0' style='color: #1a73e8;'>📊 Check in sheet</a></p>" +
+      
+      "<hr style='border: none; border-top: 1px solid #ccc; margin: 20px 0;'>" +
+      "<p style='color: #666; font-size: 14px;'>" +
+      "Best,<br>" +
+      "<strong>Team HireForTravel</strong>" +
+      "</p>" +
+      "</div>";
+    
+    MailApp.sendEmail({
+      to: INTERNAL_EMAIL,
+      subject: subject,
+      htmlBody: htmlBody
+    });
+    
+    debugLog("sendCompanyLeadInternalEmail", "✅ Internal email sent successfully", { to: INTERNAL_EMAIL, subject: subject });
+    return true;
+  } catch (error) {
+    debugLog("sendCompanyLeadInternalEmail", "❌ ERROR sending internal email", { error: error.toString() });
+    return false;
+  }
+}
+
+// 📧 Send External Email - Company Acknowledgment
+function sendCompanyAcknowledgmentEmail(payload) {
+  debugLog("sendCompanyAcknowledgmentEmail", "📧 START - Sending company acknowledgment email");
+  
+  try {
+    const fullName = payload.contactPersonName || "there";
+    const recipientEmail = payload.email || "";
+    
+    if (!recipientEmail) {
+      debugLog("sendCompanyAcknowledgmentEmail", "⚠️  No recipient email found, skipping");
+      return false;
+    }
+    
+    const whatsappLink = "https://wa.me/" + WHATSAPP_NUMBER.replace(/\D/g, "");
+    
+    const subject = "We've received your requirement – HireForTravel";
+    
+    const htmlBody = 
+      "<div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 14px;'>" +
+      "<p>Hey " + escapeHtml(fullName) + ",</p>" +
+      
+      "<p>Thanks for sharing your hiring requirement with HireForTravel.</p>" +
+      
+      "<p>We've received the details and our team is currently reviewing them. We'll get back to you within the next 24–48 hours.</p>" +
+      
+      "<p>If your requirement is urgent, feel free to connect with us directly on WhatsApp: <a href='" + whatsappLink + "' style='color: #25d366; font-weight: bold;'>Click to Chat</a></p>" +
+      
+      "<p>We look forward to working together and supporting your hiring.</p>" +
+      
+      "<hr style='border: none; border-top: 1px solid #ccc; margin: 20px 0;'>" +
+      
+      "<p>Best regards,<br>" +
+      "<strong>" + escapeHtml(FOUNDER_NAME) + "</strong><br>" +
+      "Founder & CEO<br>" +
+      "<strong>HireForTravel</strong><br>" +
+      "📞 " + FOUNDER_PHONE + "<br>" +
+      "📧 " + FOUNDER_EMAIL + "</p>" +
+      "</div>";
+    
+    MailApp.sendEmail({
+      to: recipientEmail,
+      subject: subject,
+      htmlBody: htmlBody,
+      name: "HireForTravel"
+    });
+    
+    debugLog("sendCompanyAcknowledgmentEmail", "✅ Acknowledgment email sent successfully", { to: recipientEmail, subject: subject });
+    return true;
+  } catch (error) {
+    debugLog("sendCompanyAcknowledgmentEmail", "❌ ERROR sending acknowledgment email", { error: error.toString() });
+    return false;
+  }
+}
+
+// 📧 Send Internal Email - Candidate Application
+function sendCandidateApplicationInternalEmail(payload) {
+  debugLog("sendCandidateApplicationInternalEmail", "📧 START - Sending internal candidate application email");
+  
+  try {
+    const candidateName = payload.fullName || "[No Candidate Name]";
+    const applyingFor = payload.applyingFor || "[No Role Specified]";
+    const location = payload.location || "[No Location]";
+    const phoneNumber = payload.phoneNumber || "[No Phone]";
+    const email = payload.email || "[No Email]";
+    const cvLink = payload.cvLink || "[No CV Link]";
+    
+    const callLink = "tel:" + phoneNumber.replace(/\D/g, "");
+    const whatsappChatLink = "https://wa.me/" + phoneNumber.replace(/\D/g, "");
+    
+    const subject = "Application from Candidate – " + candidateName + " | " + applyingFor + " | " + location;
+    
+    const htmlBody = 
+      "<div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 14px;'>" +
+      "<h2 style='color: #1a73e8; font-size: 18px;'>Candidate Application received on Website</h2>" +
+      "<hr style='border: none; border-top: 2px solid #1a73e8; margin: 20px 0;'>" +
+      
+      "<p style='font-size: 14px;'><strong>Candidate Name:</strong> " + escapeHtml(candidateName) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Contact Number:</strong> " + escapeHtml(phoneNumber) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Email:</strong> " + escapeHtml(email) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Applying for:</strong> " + escapeHtml(applyingFor) + "</p>" +
+      "<p style='font-size: 14px;'><strong>Location:</strong> " + escapeHtml(location) + "</p>" +
+      "<p style='font-size: 14px;'><a href='" + escapeHtml(cvLink) + "' style='color: #1a73e8;'>📄 View CV</a></p>" +
+      
+      "<h3 style='font-size: 14px;'>Quick Action Links:</h3>" +
+      "<p style='font-size: 14px;'>" +
+      "<a href='" + callLink + "' style='display: inline-block; padding: 8px 15px; margin-right: 10px; background-color: #34a853; color: white; text-decoration: none; border-radius: 4px;'>📞 Click to call</a>" +
+      "<a href='" + whatsappChatLink + "' style='display: inline-block; padding: 8px 15px; background-color: #25d366; color: white; text-decoration: none; border-radius: 4px;'>💬 Click to WhatsApp</a>" +
+      "</p>" +
+      
+      "<h3 style='font-size: 14px;'>Reference Links</h3>" +
+      "<p style='font-size: 14px;'><a href='https://docs.google.com/spreadsheets/d/1beR4ZgqfBTRIew2ekIj2iznjAbiWrgIUkUPmzzeWMmc/edit?gid=0#gid=0' style='color: #1a73e8;'>📊 Check in sheet</a></p>" +
+      
+      "<hr style='border: none; border-top: 1px solid #ccc; margin: 20px 0;'>" +
+      "<p style='color: #666; font-size: 14px;'>" +
+      "Best,<br>" +
+      "<strong>Team HireForTravel</strong>" +
+      "</p>" +
+      "</div>";
+    
+    MailApp.sendEmail({
+      to: INTERNAL_EMAIL,
+      subject: subject,
+      htmlBody: htmlBody
+    });
+    
+    debugLog("sendCandidateApplicationInternalEmail", "✅ Internal candidate email sent successfully", { to: INTERNAL_EMAIL, subject: subject });
+    return true;
+  } catch (error) {
+    debugLog("sendCandidateApplicationInternalEmail", "❌ ERROR sending internal candidate email", { error: error.toString() });
+    return false;
+  }
+}
+
+// 📧 Send External Email - Candidate Acknowledgment
+function sendCandidateAcknowledgmentEmail(payload) {
+  debugLog("sendCandidateAcknowledgmentEmail", "📧 START - Sending candidate acknowledgment email");
+  
+  try {
+    const fullName = payload.fullName || "there";
+    const recipientEmail = payload.email || "";
+    
+    if (!recipientEmail) {
+      debugLog("sendCandidateAcknowledgmentEmail", "⚠️  No recipient email found, skipping");
+      return false;
+    }
+    
+    const subject = "We've received your application – HireForTravel";
+    
+    const htmlBody = 
+      "<div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 14px;'>" +
+      "<p>Hey " + escapeHtml(fullName) + ",</p>" +
+      
+      "<p>Thanks for sharing your profile with HireForTravel.</p>" +
+      
+      "<p>We've received your application and our team is currently reviewing it. If your profile matches any relevant opportunity, we'll reach out to you with the next steps.</p>" +
+      
+      "<p>Meanwhile, feel free to reply to this email if you'd like to share any additional details or preferences.</p>" +
+      
+      "<p>We appreciate your interest and look forward to connecting with you.</p>" +
+      
+      "<hr style='border: none; border-top: 1px solid #ccc; margin: 20px 0;'>" +
+      
+      "<p style='font-size: 14px;'>Best regards,<br>" +
+      "<strong>" + escapeHtml(FOUNDER_NAME) + "</strong><br>" +
+      "Founder & CEO<br>" +
+      "<strong>HireForTravel</strong></p>" +
+      "</div>";
+    
+    MailApp.sendEmail({
+      to: recipientEmail,
+      subject: subject,
+      htmlBody: htmlBody,
+      name: "HireForTravel"
+    });
+    
+    debugLog("sendCandidateAcknowledgmentEmail", "✅ Acknowledgment email sent successfully", { to: recipientEmail, subject: subject });
+    return true;
+  } catch (error) {
+    debugLog("sendCandidateAcknowledgmentEmail", "❌ ERROR sending candidate acknowledgment email", { error: error.toString() });
+    return false;
+  }
+}
+
+// 🛡️ HTML Escape Helper
+function escapeHtml(text) {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 // ✅ Responses
 function createSuccessResponse(customResponse) {
