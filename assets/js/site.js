@@ -1,5 +1,6 @@
 (function () {
   const config = window.HFT_CONFIG || {};
+  const GENERIC_FORM_ERROR = "Something went wrong! Please connect with us directly over Whatsapp.";
   const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
   const nav = document.querySelector("[data-mobile-nav]");
   const navToggle = document.querySelector("[data-nav-toggle]");
@@ -360,8 +361,15 @@
       body: JSON.stringify(payload)
     });
 
+    let responseData = {};
+    try {
+      responseData = await response.json();
+    } catch (error) {
+      console.error("Unable to parse webhook response:", error);
+    }
+
     if (!response.ok) {
-      console.error("Webhook request failed:", response.status, response.statusText);
+      console.error("Webhook request failed:", response.status, responseData);
       throw new Error("Webhook request failed");
     }
 
@@ -380,7 +388,9 @@
           // File size limit: 3 MB (converts to ~4 MB when base64 encoded)
           const maxSizeMB = 3;
           if (value.size > maxSizeMB * 1024 * 1024) {
-            throw new Error(`File size exceeds ${maxSizeMB}MB limit. Please upload a smaller file.`);
+            const error = new Error(`File size exceeds ${maxSizeMB}MB limit. Please upload a smaller file.`);
+            error.isUserInputError = true;
+            throw error;
           }
           // Read file as base64 for upload
           const filePromise = new Promise((resolve) => {
@@ -432,7 +442,9 @@
       form.reset();
     } catch (error) {
       console.error("Form submission error:", error);
-      setStatus(statusNode, `<strong>Error:</strong> ${error.message}`, "error");
+
+      const errorMessage = error.isUserInputError ? error.message : GENERIC_FORM_ERROR;
+      setStatus(statusNode, `<strong>Error:</strong> ${errorMessage}`, "error");
     } finally {
       submitButton.disabled = false;
       submitButton.innerHTML = form === modalForm ? forms[activeModal || "company"].submit : `Send Inquiry ${iconArrow}`;
