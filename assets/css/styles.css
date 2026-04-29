@@ -252,15 +252,15 @@ button {
 .page-hero h1,
 .section-title {
   margin: 0;
+  font-family: "Roboto", "Manrope", "Segoe UI", sans-serif;
   color: var(--ink-900);
-  letter-spacing: -0.055em;
-  line-height: 1.02;
+  letter-spacing: 0;
+  line-height: 1.08;
 }
 
 .hero__copy h1,
 .page-hero h1 {
-  font-family: "Cormorant Garamond", Georgia, serif;
-  font-size: clamp(2.85rem, 6vw, 5.2rem);
+  font-size: clamp(2.55rem, 5vw, 4.75rem);
   font-weight: 700;
 }
 
@@ -456,7 +456,7 @@ button {
   transform: translateY(-1px);
 }
 
-.button--primary {
+.button.button--primary {
   background: var(--green-900);
   color: var(--white);
   box-shadow: 0 12px 26px rgba(11, 61, 46, 0.16);
@@ -713,10 +713,11 @@ button {
 
 .cta-band h2 {
   margin: 0;
+  font-family: "Roboto", "Manrope", "Segoe UI", sans-serif;
   color: var(--white);
   font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1.04;
-  letter-spacing: -0.05em;
+  line-height: 1.08;
+  letter-spacing: 0;
 }
 
 .cta-band p {
@@ -1059,10 +1060,11 @@ button {
 
 .modal__header h2 {
   margin: 0;
+  font-family: "Roboto", "Manrope", "Segoe UI", sans-serif;
   color: var(--ink-900);
   font-size: clamp(1.7rem, 3vw, 2.4rem);
-  line-height: 1.05;
-  letter-spacing: -0.05em;
+  line-height: 1.1;
+  letter-spacing: 0;
 }
 
 .modal__header p {
