@@ -420,26 +420,44 @@
     submitButton.textContent = "Submitting...";
 
     try {
-      const payload = await formDataToObject(form);
-    payload.timestamp = new Date().toISOString();
-    payload.pageUrl = window.location.href;
-    payload.cta = form.dataset.triggerLabel || "";
-    
-    // Determine source - prefer form.dataset.source, then activeModal for modal forms
-    let source = form.dataset.source;
-    if (!source && form === modalForm && activeModal) {
-      source = forms[activeModal]?.source;
-    }
-    
-    payload.source = source || "Contact";
-
-    // Debug logging
-    console.log("Form source:", source);
-    console.log("Submitting payload:", payload);
-
-      await submitPayload(payload);
+      const payloadPromise = formDataToObject(form);
       setStatus(statusNode, "<strong>Thanks! We’ll reach out in 24-48 hrs.</strong>", "success");
       form.reset();
+
+      payloadPromise
+        .then((payload) => {
+          payload.timestamp = new Date().toISOString();
+          payload.pageUrl = window.location.href;
+          payload.cta = form.dataset.triggerLabel || "";
+
+          // Determine source - prefer form.dataset.source, then activeModal for modal forms
+          let source = form.dataset.source;
+          if (!source && form === modalForm && activeModal) {
+            source = forms[activeModal]?.source;
+          }
+
+          payload.source = source || "Contact";
+
+          // Debug logging
+          console.log("Form source:", source);
+          console.log("Submitting payload:", payload);
+
+          return submitPayload(payload).catch((error) => {
+            console.error("Background form submission failed after optimistic success:", {
+              error,
+              source: payload.source,
+              pageUrl: payload.pageUrl,
+              submittedAt: payload.timestamp
+            });
+          });
+        })
+        .catch((error) => {
+          console.error("Form payload preparation failed after optimistic success:", error);
+
+          if (error.isUserInputError) {
+            setStatus(statusNode, `<strong>Error:</strong> ${error.message}`, "error");
+          }
+        });
     } catch (error) {
       console.error("Form submission error:", error);
 

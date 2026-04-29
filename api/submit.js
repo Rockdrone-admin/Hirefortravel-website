@@ -158,7 +158,7 @@ export default async function handler(req, res) {
       warning: appScriptData.warning || "none"
     });
 
-    if (!appScriptResponse.ok) {
+    if (!appScriptResponse.ok || appScriptData.success !== true) {
       logAsync("handler", "❌ AppScript returned error", {
         status: appScriptResponse.status,
         data: appScriptData
