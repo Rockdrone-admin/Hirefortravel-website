@@ -742,6 +742,64 @@ button {
   box-shadow: var(--shadow-sm);
 }
 
+@media (min-width: 1025px) {
+  .page-hero .split-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
+    align-items: start;
+  }
+
+  .page-hero .split-layout > .panel {
+    justify-self: end;
+  }
+
+  .page-hero h1 {
+    font-size: clamp(2.55rem, 4.2vw, 4rem);
+  }
+}
+
+@media (min-width: 1025px) {
+  body.page-companies .page-hero .split-layout {
+    grid-template-columns: 1fr;
+    gap: 1.4rem;
+    align-items: start;
+  }
+
+  body.page-companies .page-hero__panel {
+    padding: 2.35rem;
+  }
+
+  body.page-companies .page-hero h1 {
+    font-size: clamp(2.5rem, 3.8vw, 4.1rem);
+    max-width: none;
+    text-wrap: balance;
+  }
+
+  body.page-companies .page-hero p {
+    max-width: none;
+    font-size: 1.06rem;
+    text-wrap: balance;
+  }
+
+  body.page-companies .page-hero .split-layout > .panel {
+    justify-self: stretch;
+    align-self: stretch;
+    padding: 1.85rem;
+  }
+
+  body.page-companies .page-hero .split-layout > .panel .section-title {
+    font-size: 1.75rem;
+  }
+
+  body.page-companies .page-hero .split-layout > .panel .list-clean {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+  }
+
+  body.page-companies .page-hero .split-layout > .panel .list-clean li {
+    align-items: center;
+  }
+}
+
 .list-clean {
   margin: 0;
   padding: 0;
