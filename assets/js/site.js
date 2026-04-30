@@ -1,6 +1,7 @@
 (function () {
   const config = window.HFT_CONFIG || {};
   const GENERIC_FORM_ERROR = "Something went wrong! Please connect with us directly over Whatsapp.";
+  const MIN_SUCCESS_DELAY_MS = 400;
   const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
   const nav = document.querySelector("[data-mobile-nav]");
   const navToggle = document.querySelector("[data-nav-toggle]");
@@ -191,7 +192,8 @@
 
   function setStatus(target, message, state) {
     if (!target) return;
-    target.className = `form-status is-visible ${state === "error" ? "form-status--error" : "form-status--success"}`;
+    const stateClass = state === "error" ? "form-status--error" : `form-status--${state || "success"}`;
+    target.className = `form-status is-visible ${stateClass}`;
     target.innerHTML = message;
   }
 
@@ -414,13 +416,25 @@
     return values;
   }
 
+  function wait(ms) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
   async function handleLeadSubmit(form, statusNode, submitButton, whatsappIntent) {
     clearStatus(statusNode);
     submitButton.disabled = true;
     submitButton.textContent = "Submitting...";
+    setStatus(statusNode, "<strong>Submitting...</strong>", "pending");
 
     try {
-      const payloadPromise = formDataToObject(form);
+      const payloadPromise = Promise.all([
+        formDataToObject(form),
+        wait(MIN_SUCCESS_DELAY_MS)
+      ]).then(([payload]) => payload);
+
+      await payloadPromise;
       setStatus(statusNode, "<strong>Thanks! We’ll reach out in 24-48 hrs.</strong>", "success");
       form.reset();
 

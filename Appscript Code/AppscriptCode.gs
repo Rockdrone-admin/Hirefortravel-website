@@ -489,6 +489,14 @@ const WHATSAPP_NUMBER = "+919266788980"; // For creating WhatsApp links
 const FOUNDER_PHONE = "+91 92667 88980";
 const FOUNDER_EMAIL = "Contact@hirefortravel.com";
 const FOUNDER_NAME = "Shwetambri Soni";
+const CLIENT_EXTERNAL_EMAIL_ALIAS = {
+  name: "Shwetambri (HireForTravel)",
+  email: "Shweta@hirefortravel.com"
+};
+const CANDIDATE_EXTERNAL_EMAIL_ALIAS = {
+  name: "Jobs at HireForTravel",
+  email: "Jobs@hirefortravel.com"
+};
 
 // 📧 Send Internal Email - Company Lead
 function sendCompanyLeadInternalEmail(payload) {
@@ -596,11 +604,11 @@ function sendCompanyAcknowledgmentEmail(payload) {
       "📧 " + FOUNDER_EMAIL + "</p>" +
       "</div>";
     
-    MailApp.sendEmail({
-      to: recipientEmail,
-      subject: subject,
+    GmailApp.sendEmail(recipientEmail, subject, "Thanks for sharing your hiring requirement with HireForTravel.", {
       htmlBody: htmlBody,
-      name: "HireForTravel"
+      name: CLIENT_EXTERNAL_EMAIL_ALIAS.name,
+      from: CLIENT_EXTERNAL_EMAIL_ALIAS.email,
+      replyTo: CLIENT_EXTERNAL_EMAIL_ALIAS.email
     });
     
     debugLog("sendCompanyAcknowledgmentEmail", "✅ Acknowledgment email sent successfully", { to: recipientEmail, subject: subject });
@@ -705,11 +713,11 @@ function sendCandidateAcknowledgmentEmail(payload) {
       "<strong>HireForTravel</strong></p>" +
       "</div>";
     
-    MailApp.sendEmail({
-      to: recipientEmail,
-      subject: subject,
+    GmailApp.sendEmail(recipientEmail, subject, "Thanks for sharing your profile with HireForTravel.", {
       htmlBody: htmlBody,
-      name: "HireForTravel"
+      name: CANDIDATE_EXTERNAL_EMAIL_ALIAS.name,
+      from: CANDIDATE_EXTERNAL_EMAIL_ALIAS.email,
+      replyTo: CANDIDATE_EXTERNAL_EMAIL_ALIAS.email
     });
     
     debugLog("sendCandidateAcknowledgmentEmail", "✅ Acknowledgment email sent successfully", { to: recipientEmail, subject: subject });
@@ -751,33 +759,4 @@ function createErrorResponse(errorMessage) {
       error: errorMessage
     }))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-
-// 🧪 TEST FUNCTION - Run this to test logging before deploying
-function testLog() {
-  Logger.log("=====================================");
-  Logger.log("🧪 TESTING LOGGING FUNCTIONALITY");
-  Logger.log("=====================================");
-  
-  try {
-    Logger.log("\n📝 Test 1: Basic log message");
-    debugLog("testLog", "✓ This is a test message", null);
-    
-    Logger.log("\n📝 Test 2: Log with data");
-    debugLog("testLog", "✓ Testing with data object", { testValue: "hello", number: 123 });
-    
-    Logger.log("\n📝 Test 3: Error log");
-    debugLog("testLog", "❌ This is a test error message", { errorCode: 500 });
-    
-    Logger.log("\n📝 Test 4: Warning log");
-    debugLog("testLog", "⚠️ This is a test warning", { warningType: "validation" });
-    
-    Logger.log("\n✅ All test logs sent to BetterStack!");
-    Logger.log("📊 Check your BetterStack dashboard at: https://app.betterstack.com");
-    Logger.log("=====================================\n");
-    
-  } catch (error) {
-    Logger.log("❌ Test failed: " + error.toString());
-  }
 }
