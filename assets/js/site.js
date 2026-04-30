@@ -91,7 +91,7 @@
       copy: "Tell us what you are hiring for and we'll shortlist relevant, pre-screened profiles.",
       submit: `Get Candidates ${iconArrow}`,
       source: "Company",
-      whatsappText: config.companyWhatsAppText || "Hi HireForTravel, I want to hire.",
+      whatsappText: config.companyWhatsAppText || "Hi Team HireForTravel, \nI’m looking to hire candidates for our travel brand. Can you help?",
       meta: [],
       fields: [
         { name: "contactPersonName", label: "Your Name", type: "text", required: true },
@@ -117,7 +117,7 @@
       copy: "Share your profile and preferred role. We'll match you with relevant openings across the travel ecosystem.",
       submit: `Apply Now ${iconArrow}`,
       source: "Candidate",
-      whatsappText: config.candidateWhatsAppText || "Hi HireForTravel, I want to apply for travel jobs.",
+      whatsappText: config.candidateWhatsAppText || "Hi Team HireForTravel, \nI'm looking to apply for travel jobs. Are there any open positions?",
       meta: [],
       fields: [
         { name: "fullName", label: "Full Name", type: "text", required: true },
@@ -260,7 +260,7 @@
   }
 
   function getWhatsAppUrl(intentText) {
-    const encoded = encodeURIComponent(intentText || config.generalWhatsAppText || "Hi HireForTravel, I would like to connect.");
+    const encoded = encodeURIComponent(intentText || config.generalWhatsAppText || "Hi Team HireForTravel,\nI came across your platform and wanted to connect.");
     return `https://wa.me/919266788980?text=${encoded}`;
   }
 

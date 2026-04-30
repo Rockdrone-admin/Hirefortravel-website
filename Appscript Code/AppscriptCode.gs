@@ -600,8 +600,8 @@ function sendCompanyAcknowledgmentEmail(payload) {
       "<strong>" + escapeHtml(FOUNDER_NAME) + "</strong><br>" +
       "Founder & CEO<br>" +
       "<strong>HireForTravel</strong><br>" +
-      "📞 " + FOUNDER_PHONE + "<br>" +
-      "📧 " + FOUNDER_EMAIL + "</p>" +
+      "Phone: " + FOUNDER_PHONE + "<br>" +
+      "Email: " + FOUNDER_EMAIL + "</p>" +
       "</div>";
     
     GmailApp.sendEmail(recipientEmail, subject, "Thanks for sharing your hiring requirement with HireForTravel.", {
