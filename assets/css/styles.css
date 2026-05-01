@@ -800,6 +800,40 @@ button {
   }
 }
 
+@media (min-width: 1025px) {
+  body.page-candidates .page-hero .split-layout {
+    grid-template-columns: 1fr;
+    gap: 1.4rem;
+    align-items: start;
+  }
+
+  body.page-candidates .page-hero {
+    padding-bottom: 2.25rem;
+  }
+
+  body.page-candidates .page-hero__panel {
+    padding: 2.35rem;
+  }
+
+  body.page-candidates .page-hero h1 {
+    font-size: clamp(2.5rem, 3.8vw, 4.1rem);
+    max-width: none;
+    text-wrap: balance;
+  }
+
+  body.page-candidates .page-hero p {
+    max-width: none;
+    font-size: 1.06rem;
+    text-wrap: balance;
+  }
+}
+
+@media (min-width: 1025px) {
+  body.page-candidates #current-roles .section-heading {
+    max-width: none;
+  }
+}
+
 .list-clean {
   margin: 0;
   padding: 0;
@@ -851,7 +885,7 @@ button {
   display: none;
 }
 
-.role-panel summary span:last-child {
+.role-panel summary > span:last-child {
   width: 30px;
   height: 30px;
   display: inline-grid;
@@ -861,7 +895,52 @@ button {
   color: var(--green-900);
 }
 
-.role-panel[open] summary span:last-child {
+.role-title {
+  display: block;
+}
+
+.role-meta {
+  display: inline-flex;
+  margin-top: 0.35rem;
+  margin-right: 0.9rem;
+  font-family: "Roboto", "Manrope", "Segoe UI", sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink-600);
+  white-space: nowrap;
+}
+
+.role-panel__content h4 {
+  margin: 1.25rem 0 0.65rem;
+  font-size: 1.05rem;
+  color: var(--ink-900);
+}
+
+.role-panel__content h4:first-child {
+  margin-top: 0;
+}
+
+.role-bullets {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--ink-600);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.role-section + .role-section {
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 820px) {
+  .role-meta {
+    display: block;
+    margin-right: 0;
+    white-space: normal;
+  }
+}
+
+.role-panel[open] summary > span:last-child {
   background: rgba(244, 197, 66, 0.16);
 }
 

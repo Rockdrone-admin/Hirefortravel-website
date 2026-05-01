@@ -31,6 +31,39 @@
     });
   }
 
+  document.querySelectorAll("[data-scroll-to]").forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      const selector = trigger.getAttribute("data-scroll-to");
+      if (!selector) return;
+      const target = document.querySelector(selector);
+      if (!target) return;
+
+      const headerOffsetRaw = getComputedStyle(document.documentElement).getPropertyValue("--header-height");
+      const headerOffset = Number.parseFloat(headerOffsetRaw) || 0;
+      const top = target.getBoundingClientRect().top + window.scrollY - headerOffset - 16;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    });
+  });
+
+  const roleAccordions = document.querySelectorAll(".roles-accordion");
+  roleAccordions.forEach((accordion) => {
+    const panels = Array.from(accordion.querySelectorAll("details.role-panel"));
+    panels.forEach((panel) => {
+      panel.addEventListener("toggle", () => {
+        if (!panel.open) return;
+        panels.forEach((other) => {
+          if (other !== panel) other.open = false;
+        });
+
+        const headerOffsetRaw = getComputedStyle(document.documentElement).getPropertyValue("--header-height");
+        const headerOffset = Number.parseFloat(headerOffsetRaw) || 0;
+        const top = panel.getBoundingClientRect().top + window.scrollY - headerOffset - 16;
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      });
+    });
+  });
+
   const iconArrow = `
     <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <path d="M5 12h14"></path>
