@@ -834,6 +834,13 @@ button {
   }
 }
 
+@media (min-width: 1025px) {
+  body.page-aboutus .page-hero p {
+    max-width: none;
+    text-wrap: balance;
+  }
+}
+
 .list-clean {
   margin: 0;
   padding: 0;
