@@ -239,19 +239,19 @@ button {
 }
 
 .hero {
-  padding: 0 0 4rem;
+  padding: 2.5rem 0 4.5rem;
 }
 
 .hero__grid,
 .split-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
-  gap: 1.5rem;
-  align-items: flex-start;
+  gap: 2rem;
+  align-items: center;
 }
 
 .hero__copy {
-  padding-top: 0.5rem;
+  padding-top: 0;
 }
 
 .hero__copy h1,
@@ -736,11 +736,11 @@ button {
 }
 
 .page-hero {
-  padding: 0 0 2rem;
+  padding: 2.5rem 0 2.5rem;
 }
 
 .page-hero__panel {
-  padding: 1rem 2rem 2rem;
+  padding: 2rem;
   border-radius: var(--radius-xl);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(245, 247, 244, 0.96) 100%);
   border: 1px solid rgba(11, 61, 46, 0.08);
@@ -1411,11 +1411,11 @@ button {
   }
 
         .hero {
-          padding: 0 0 3rem;
+          padding: 1.5rem 0 3.5rem;
         }
 
         .hero__copy {
-          padding-top: 0.25rem;
+          padding-top: 0;
         }
 
         .hero__meta,
@@ -1429,11 +1429,11 @@ button {
         }
 
         .page-hero {
-          padding: 0 0 2rem;
+          padding: 1.5rem 0 2rem;
         }
 
         .page-hero__panel {
-          padding: 1rem 1.25rem 1.75rem;
+          padding: 1.5rem 1.25rem 2rem;
         }
 
     .modal-root.is-open {
