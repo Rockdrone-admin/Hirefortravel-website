@@ -41,8 +41,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body.is-locked {
+  body.is-locked {
   overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
 }
 
 img {
@@ -1175,7 +1177,10 @@ button {
 }
 
 .modal-root.is-open {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }
 
 .modal-backdrop {
@@ -1188,11 +1193,12 @@ button {
 .modal-panel {
   position: relative;
   z-index: 1;
-  width: min(100% - 1.2rem, 760px);
-  max-height: calc(100vh - 2rem);
-  margin: 1rem auto;
+  width: min(100%, 760px);
+  max-height: 100%;
+  margin: 0;
   border-radius: 26px;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgba(252, 253, 250, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: var(--shadow-lg);
@@ -1259,6 +1265,7 @@ button {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.8rem;
+  padding-bottom: 0.5rem;
 }
 
 .modal__footer .button {
@@ -1414,12 +1421,16 @@ button {
     padding: 3.5rem 0;
   }
 
-  .modal-panel {
-    width: min(100% - 0.75rem, 760px);
-    margin: 0.4rem auto;
-    max-height: calc(100vh - 0.8rem);
-    border-radius: 22px;
-  }
+    .modal-root.is-open {
+      padding: 0.4rem;
+    }
+
+    .modal-panel {
+      width: min(100%, 760px);
+      margin: 0;
+      max-height: 100%;
+      border-radius: 22px;
+    }
 
   .modal__header,
   .modal__body {
@@ -1451,10 +1462,11 @@ button {
     max-width: calc(100% - 1.1rem);
   }
 
-  .button-row,
+    .button-row,
   .hero__actions,
   .modal__footer {
     flex-direction: column;
+    padding-bottom: 1.25rem;
   }
 
   .grid-4,
