@@ -1,0 +1,19 @@
+{
+  "name": "hirefortravel-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@10.8.1",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "start": "turbo run start"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
