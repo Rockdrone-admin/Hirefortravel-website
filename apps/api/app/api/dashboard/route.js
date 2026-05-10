@@ -30,11 +30,6 @@ export async function GET(req) {
     }
     const startDateISO = startDate.toISOString();
     
-    // For "Today" unique sessions, we use a different calculation
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
-    
     // Run queries in parallel
     const [
       { count: activeJobsCount },
