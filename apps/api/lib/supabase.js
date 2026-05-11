@@ -10,5 +10,9 @@ export const supabase = (supabaseUrl && supabaseKey)
   : null;
 
 export function getEnvironment() {
+  // Use SUPABASE_ENVIRONMENT if set, otherwise fallback to NODE_ENV
+  if (process.env.SUPABASE_ENVIRONMENT) {
+    return process.env.SUPABASE_ENVIRONMENT;
+  }
   return process.env.NODE_ENV === 'production' ? 'production' : 'development';
 }
