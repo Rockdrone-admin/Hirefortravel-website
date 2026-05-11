@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getCorsHeaders } from '../../../../lib/cors';
 
-// Mock CORS headers
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Dynamic CORS handled inside functions
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(req) {
+  return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
 }
 
 export async function POST(req) {
@@ -16,18 +12,10 @@ export async function POST(req) {
     const { email } = await req.json();
 
     if (!email) {
-      return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400, headers: corsHeaders });
+      return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
     // In a real application, you would use a service like SendGrid, Resend, or Mailgun here.
-    // Example (pseudo-code):
-    // await resend.emails.send({
-    //   from: 'system@hirefortravel.com',
-    //   to: 'Contact@hirefortravel.com',
-    //   subject: 'Password Reset Request',
-    //   text: `User with email ${email} has requested a password reset.`
-    // });
-
     console.log(`[AUTH] Password reset request received for: ${email}`);
     console.log(`[AUTH] Notifying administrator at Contact@hirefortravel.com`);
 
@@ -35,10 +23,10 @@ export async function POST(req) {
     return NextResponse.json({ 
       success: true, 
       message: 'Reset request logged and administrator notified.' 
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(req.headers.get('origin')) });
 
   } catch (err) {
     console.error('Reset request error:', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
   }
 }

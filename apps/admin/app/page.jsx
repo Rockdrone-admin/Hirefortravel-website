@@ -53,12 +53,12 @@ export default function AdminDashboard() {
 
   return (
     <main>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Overview</h1>
           <p className="text-sm text-gray-500">Real-time performance metrics for HireForTravel.</p>
         </div>
-        <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 bg-white p-1 rounded-lg border border-gray-200 shadow-sm w-full md:w-auto">
           {['today', '7d', '30d'].map((range) => (
             <button
               key={range}

@@ -55,10 +55,10 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div>
             <h2 className="text-xl font-bold text-gray-800">{job ? 'Edit Job Opening' : 'Add New Job Opening'}</h2>
             <p className="text-sm text-gray-500">{job ? 'Update the details for this position.' : 'Fill in the details to post a new position on the website.'}</p>
@@ -69,7 +69,7 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
         </div>
 
         {/* Form Body */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           <form id="job-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -168,14 +168,14 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
-          <button onClick={onClose} className="px-6 py-2.5 rounded-lg font-medium text-gray-600 hover:bg-gray-200 transition-all">
+        <div className="p-4 sm:p-6 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3 bg-gray-50/50">
+          <button onClick={onClose} className="px-6 py-2.5 rounded-lg font-medium text-gray-600 hover:bg-gray-200 transition-all w-full sm:w-auto">
             Cancel
           </button>
           <button 
             type="submit" 
             form="job-form"
-            className="px-6 py-2.5 rounded-lg font-bold text-white bg-green-700 hover:bg-green-800 shadow-lg shadow-green-200 transition-all"
+            className="px-6 py-2.5 rounded-lg font-bold text-white bg-green-700 hover:bg-green-800 shadow-lg shadow-green-200 transition-all w-full sm:w-auto"
           >
             Save Job Posting
           </button>

@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../lib/supabase';
+import { getCorsHeaders } from '../../../lib/cors';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Dynamic CORS handled inside functions
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(req) {
+  return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
 }
 
 export async function GET(req) {
@@ -59,9 +56,9 @@ export async function GET(req) {
       recentEvents: recentEvents || []
     };
 
-    return NextResponse.json({ success: true, data: dashboardData }, { headers: corsHeaders });
+    return NextResponse.json({ success: true, data: dashboardData }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
     console.error('Dashboard aggregation error:', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
   }
 }

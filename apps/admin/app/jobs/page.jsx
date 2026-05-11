@@ -168,11 +168,11 @@ export default function JobsManager() {
 
   return (
     <main>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Jobs Manager</h1>
         <button 
           onClick={() => { setEditingJob(null); setIsModalOpen(true); }}
-          className="bg-green-700 text-white px-4 py-2 rounded-md font-medium hover:bg-green-800 transition-colors shadow-lg shadow-green-100"
+          className="bg-green-700 text-white px-4 py-2 rounded-md font-medium hover:bg-green-800 transition-colors shadow-lg shadow-green-100 w-full sm:w-auto"
         >
           + Add New Job
         </button>
@@ -193,7 +193,8 @@ export default function JobsManager() {
         </button>
       </div>
       
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-sm">
@@ -281,6 +282,87 @@ export default function JobsManager() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Stacked Cards */}
+      <div className="md:hidden flex flex-col gap-4">
+        {loading ? (
+          <div className="p-10 text-center text-gray-400 italic bg-white rounded-xl border border-gray-200">Loading jobs...</div>
+        ) : jobs.length === 0 ? (
+          <div className="p-10 text-center text-gray-400 italic bg-white rounded-xl border border-gray-200">No {activeTab} jobs found.</div>
+        ) : (
+          jobs.map((job) => (
+            <div key={job.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-gray-900">{job.title}</h3>
+                  <p className="text-sm text-gray-600">{job.company_name}</p>
+                </div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  job.status === 'active' ? 'bg-green-100 text-green-800' : 
+                  job.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {job.status}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500">
+                <span className="font-medium text-gray-700">Location:</span> {job.location}
+              </div>
+              <div className="pt-3 border-t border-gray-100 flex flex-wrap gap-2 justify-end">
+                {activeTab === 'active' ? (
+                  <>
+                    <button 
+                      onClick={() => handleToggleStatus(job)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium ${job.status === 'active' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'}`}
+                    >
+                      {job.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button 
+                      onClick={() => handleDuplicateJob(job)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700"
+                    >
+                      Duplicate
+                    </button>
+                    <button 
+                      onClick={() => handleEditClick(job)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleArchiveJob(job.id)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-red-50 text-red-700"
+                    >
+                      Archive
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => handleEditClick(job)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleUnarchiveJob(job.id)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-green-50 text-green-700"
+                    >
+                      Unarchive
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteJob(job.id)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-red-50 text-red-700"
+                    >
+                      Delete Permanent
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <JobModal 

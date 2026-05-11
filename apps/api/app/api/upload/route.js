@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getCorsHeaders } from '../../../../lib/cors';
 import { supabase } from '../../../lib/supabase';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Dynamic CORS handled inside functions
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+export async function OPTIONS(req) {
+  return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
 }
 
 export async function POST(req) {
@@ -19,7 +16,7 @@ export async function POST(req) {
     const path = formData.get('path') || `${Date.now()}-${file.name}`;
 
     if (!file) {
-      return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400, headers: corsHeaders });
+      return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
     // Convert file to Buffer
@@ -36,7 +33,7 @@ export async function POST(req) {
 
     if (error) {
       console.error('Supabase storage error:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: corsHeaders });
+      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
     // Get public URL
@@ -44,9 +41,9 @@ export async function POST(req) {
       .from(bucket)
       .getPublicUrl(path);
 
-    return NextResponse.json({ success: true, url: publicUrl }, { headers: corsHeaders });
+    return NextResponse.json({ success: true, url: publicUrl }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
     console.error('Upload error:', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
   }
 }
