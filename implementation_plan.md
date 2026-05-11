@@ -75,16 +75,16 @@ We will use **Supabase (PostgreSQL)**.
 
 ### Deployment Endpoints
 - **Production**: `hirefortravel.com` (Web), `admin.hirefortravel.com` (Admin), `api.hirefortravel.com` (API)
-- **Development**: `dev.hirefortravel.com` (Web), `dev.admin.hirefortravel.com` (Admin), `api-dev.hirefortravel.com` (API)
+- **Development**: `dev.hirefortravel.com` (Web), `dev-admin.hirefortravel.com` (Admin), `dev-api.hirefortravel.com` (API)
 
 ### Isolation Strategy
 1. **Separate Supabase Projects**: We will provision two completely separate Supabase instances—one for DEV, one for PROD. This physically isolates the data.
 2. **Environment Variables**: Vercel projects will have strictly separated `DATABASE_URL` and `API_URL` variables.
-3. **CORS & Origin Restrictions**: `api-dev.hirefortravel.com` will only accept requests from `dev.hirefortravel.com` and `dev.admin.hirefortravel.com`. Prod API will only accept Prod origins.
+3. **CORS & Origin Restrictions**: `dev-api.hirefortravel.com` will only accept requests from `dev.hirefortravel.com` and `dev-admin.hirefortravel.com`. Prod API will only accept Prod origins.
 4. **Environment DB Column**: As a failsafe, tables include an `environment` column. The API will strictly enforce `WHERE environment = 'production'` in prod and `WHERE environment = 'development'` in dev.
 
 ### Indexing Protection
-- Admin (`admin.` and `dev.admin.`) and API (`api.` and `api-dev.`) will have:
+- Admin (`admin.` and `dev-admin.`) and API (`api.` and `dev-api.`) will have:
   - `X-Robots-Tag: noindex, nofollow` HTTP headers.
   - `<meta name="robots" content="noindex, nofollow">`.
   - `robots.txt` disallowing all (`Disallow: /`).

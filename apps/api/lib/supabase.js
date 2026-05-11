@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
+// The environment variable MUST be prefixed correctly or just passed from Vercel config.
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-// Only initialize if we have the required credentials
-// This prevents build-time crashes when environment variables are not available
+// Resilient initialization for build-time safety
 export const supabase = (supabaseUrl && supabaseKey) 
-  ? createClient(supabaseUrl, supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey) 
   : null;
 
 export function getEnvironment() {
