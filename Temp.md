@@ -3,3 +3,4 @@
 - **Development**: `dev.hirefortravel.com` (Web), `dev-admin.hirefortravel.com` (Admin), `dev-api.hirefortravel.com` (API)
 
 Production Environment Variables
+Supabase 
