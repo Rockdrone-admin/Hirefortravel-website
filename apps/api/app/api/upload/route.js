@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCorsHeaders } from '../../../../lib/cors';
+import { getCorsHeaders } from '../../../lib/cors';
 import { supabase } from '../../../lib/supabase';
 
 // Dynamic CORS handled inside functions
