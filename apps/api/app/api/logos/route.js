@@ -28,12 +28,12 @@ export async function GET(req) {
     console.log(`Logos fetch (showAll: ${showAll}):`, { count: logos?.length, firstFive: logos?.slice(0, 5).map(l => ({ id: l.id, vis: l.is_visible })) });
 
     if (error) {
-      return NextResponse.json({ success: false, error: 'Failed to fetch logos' }, { status: 500, headers: getCorsHeaders(request.headers.get('origin')) });
+      return NextResponse.json({ success: false, error: 'Failed to fetch logos' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
-    return NextResponse.json({ success: true, data: logos }, { headers: getCorsHeaders(request.headers.get('origin')) });
+    return NextResponse.json({ success: true, data: logos }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(request.headers.get('origin')) });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
   }
 }
 
