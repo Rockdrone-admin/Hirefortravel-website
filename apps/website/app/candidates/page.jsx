@@ -132,13 +132,13 @@ export default async function CandidatesPage({ searchParams }) {
               jobs.map((job) => (
                 <details key={job.id} id={`job-${job.id}`} className="role-panel" open={String(job.id) === String(jobId)}>
                   <summary>
-                    <span>
+                    <div className="role-header-text">
                       <span className="role-title">{job.title}</span>
                       <span className="role-meta">Company: {job.company_name}</span>
                       <span className="role-meta">Location: {job.location}</span>
                       <span className="role-meta">Experience: {job.experience}</span>
                       {job.salary && <span className="role-meta">Salary: {job.salary}</span>}
-                    </span>
+                    </div>
                     <span className="role-summary-actions">
                       <button
                         className="button--share-inline"
@@ -152,6 +152,12 @@ export default async function CandidatesPage({ searchParams }) {
                     </span>
                   </summary>
                   <div className="role-panel__content">
+                    {job.about_role && (
+                      <div className="role-section">
+                        <h4>About The Role</h4>
+                        <p className="role-text" style={{ whiteSpace: 'pre-line' }}>{job.about_role}</p>
+                      </div>
+                    )}
 
                     {job.responsibilities && job.responsibilities.length > 0 && (
                       <div className="role-section">

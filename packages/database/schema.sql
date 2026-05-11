@@ -9,6 +9,7 @@ CREATE TABLE jobs (
   location TEXT NOT NULL,
   experience TEXT NOT NULL,
   salary TEXT,
+  about_role TEXT NOT NULL DEFAULT '',
   responsibilities TEXT[] NOT NULL DEFAULT '{}',
   requirements TEXT[] NOT NULL DEFAULT '{}',
   benefits TEXT[] NOT NULL DEFAULT '{}',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../lib/supabase';
 import { getCorsHeaders } from '../../../lib/cors';
+import { logCritical } from '@repo/logger';
 
 // Dynamic CORS handled inside functions
 
@@ -28,6 +29,7 @@ export async function GET(req) {
     console.log(`Logos fetch (showAll: ${showAll}):`, { count: logos?.length, firstFive: logos?.slice(0, 5).map(l => ({ id: l.id, vis: l.is_visible })) });
 
     if (error) {
+      logCritical('Failed to fetch logos from Supabase', { error });
       return NextResponse.json({ success: false, error: 'Failed to fetch logos' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -53,6 +55,7 @@ export async function POST(req) {
       .select();
 
     if (error) {
+      logCritical('Failed to create logo in Supabase', { error, logoData });
       return NextResponse.json({ success: false, error: 'Failed to create logo' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -78,6 +81,7 @@ export async function PATCH(req) {
       .select();
 
     if (error) {
+      logCritical('Failed to update logo in Supabase', { error, id, updates });
       return NextResponse.json({ success: false, error: 'Failed to update logo' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -104,6 +108,7 @@ export async function DELETE(req) {
       .eq('environment', environment);
 
     if (error) {
+      logCritical('Failed to delete logo from Supabase', { error, id });
       return NextResponse.json({ success: false, error: 'Failed to delete logo' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 

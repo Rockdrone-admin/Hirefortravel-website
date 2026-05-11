@@ -1,3 +1,6 @@
+import LogoMarquee from './LogoMarquee';
+import { logCritical } from '@repo/logger';
+
 export default async function LogoShowcase() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
   
@@ -8,8 +11,14 @@ export default async function LogoShowcase() {
     const data = await res.json();
     if (data.success) {
       logos = data.data;
+      if (logos.length === 0) {
+        logCritical('Logos fetch succeeded but returned 0 logos. Check database.', { url: `${API_URL}/api/logos` });
+      }
+    } else {
+      logCritical('API returned success:false when fetching logos', { data });
     }
   } catch (error) {
+    logCritical('Failed to fetch logos from API (API might be down)', { error: error.message, url: `${API_URL}/api/logos` });
     console.error("Failed to fetch logos:", error);
   }
 
@@ -34,13 +43,7 @@ export default async function LogoShowcase() {
           <p className="section-subtitle">Leading travel brands are hiring smarter and faster.</p>
         </div>
 
-        <div className="clients-strip" aria-label="Client logos">
-          {displayLogos.map((logo) => (
-            <div key={logo.id || logo.company_name} className="client-logo">
-              <img src={logo.logo_url} alt={logo.alt_text || logo.company_name} loading="lazy" />
-            </div>
-          ))}
-        </div>
+        <LogoMarquee logos={displayLogos} />
       </div>
     </section>
   );

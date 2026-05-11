@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../lib/supabase';
 import { getCorsHeaders } from '../../../lib/cors';
+import { logCritical } from '@repo/logger';
 
 // Dynamic CORS handled inside functions
 
@@ -17,6 +18,11 @@ export async function GET(req) {
     const statusParam = searchParams.get('status') || 'active';
     const statusList = statusParam.split(',');
     
+    if (!supabase) {
+      logCritical('Supabase client not initialized in API route');
+      return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
     const { data: jobs, error } = await supabase
       .from('jobs')
       .select('*')
@@ -25,7 +31,7 @@ export async function GET(req) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Supabase error fetching jobs:', error);
+      logCritical('Failed to fetch jobs from Supabase', { error });
       return NextResponse.json({ success: false, error: 'Failed to fetch jobs' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -46,13 +52,18 @@ export async function POST(req) {
       environment
     };
 
+    if (!supabase) {
+      logCritical('Supabase client not initialized in API route');
+      return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
     const { data, error } = await supabase
       .from('jobs')
       .insert([jobData])
       .select();
 
     if (error) {
-      console.error('Supabase error creating job:', error);
+      logCritical('Failed to create job in Supabase', { error, jobData });
       return NextResponse.json({ success: false, error: 'Failed to create job' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -75,6 +86,11 @@ export async function PATCH(req) {
     // Try to handle both string and numeric IDs
     const numericId = !isNaN(id) ? Number(id) : id;
     
+    if (!supabase) {
+      logCritical('Supabase client not initialized in API route');
+      return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
     const { data, error } = await supabase
       .from('jobs')
       .update(updates)
@@ -83,7 +99,7 @@ export async function PATCH(req) {
       .select();
 
     if (error) {
-      console.error('Supabase error updating job:', error);
+      logCritical('Failed to update job in Supabase', { error, id, updates });
       return NextResponse.json({ success: false, error: 'Failed to update job: ' + error.message }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -111,6 +127,11 @@ export async function DELETE(req) {
     // Try to handle both string and numeric IDs
     const numericId = !isNaN(id) ? Number(id) : id;
 
+    if (!supabase) {
+      logCritical('Supabase client not initialized in API route');
+      return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
     const { error } = await supabase
       .from('jobs')
       .delete()
@@ -118,7 +139,7 @@ export async function DELETE(req) {
       .eq('environment', environment);
 
     if (error) {
-      console.error('Supabase error deleting job:', error);
+      logCritical('Failed to delete job from Supabase', { error, id });
       return NextResponse.json({ success: false, error: 'Failed to delete job' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 

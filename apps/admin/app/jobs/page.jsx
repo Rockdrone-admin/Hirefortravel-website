@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import JobModal from '../../components/JobModal';
+import { logCritical } from '@repo/logger';
 
 export default function JobsManager() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,8 +26,11 @@ export default function JobsManager() {
       const result = await response.json();
       if (result.success) {
         setJobs(result.data);
+      } else {
+        logCritical('Admin: API returned success:false when fetching jobs', { result });
       }
     } catch (err) {
+      logCritical('Admin: Failed to fetch jobs (API might be down)', { error: err.message });
       console.error("Error fetching jobs:", err);
     } finally {
       setLoading(false);
@@ -51,9 +55,11 @@ export default function JobsManager() {
       if (result.success) {
         fetchJobs();
       } else {
+        logCritical('Admin: API returned success:false when archiving job', { result, id });
         alert("Error archiving job: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to archive job (Network error)', { error: err.message, id });
       console.error("Error archiving job:", err);
     }
   };
@@ -69,9 +75,11 @@ export default function JobsManager() {
       if (result.success) {
         fetchJobs();
       } else {
+        logCritical('Admin: API returned success:false when unarchiving job', { result, id });
         alert("Error unarchiving job: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to unarchive job (Network error)', { error: err.message, id });
       console.error("Error unarchiving job:", err);
     }
   };
@@ -88,9 +96,11 @@ export default function JobsManager() {
       if (result.success) {
         fetchJobs();
       } else {
+        logCritical('Admin: API returned success:false when toggling status', { result, id: job.id, newStatus });
         alert(`Error setting to ${newStatus}: ` + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to toggle status (Network error)', { error: err.message, id: job.id, newStatus });
       console.error("Error toggling status:", err);
     }
   };
@@ -117,9 +127,11 @@ export default function JobsManager() {
       if (result.success) {
         fetchJobs();
       } else {
+        logCritical('Admin: API returned success:false when duplicating job', { result, originalJobId: job.id });
         alert("Error duplicating job: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to duplicate job (Network error)', { error: err.message, originalJobId: job.id });
       console.error("Error duplicating job:", err);
     }
   };
@@ -135,9 +147,11 @@ export default function JobsManager() {
       if (result.success) {
         fetchJobs();
       } else {
+        logCritical('Admin: API returned success:false when deleting job', { result, id });
         alert("Error deleting job: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to delete job (Network error)', { error: err.message, id });
       console.error("Error deleting job:", err);
     }
   };
@@ -158,9 +172,11 @@ export default function JobsManager() {
         setEditingJob(null);
         fetchJobs(); // Refresh the list
       } else {
+        logCritical('Admin: API returned success:false when saving job', { result, method, body });
         alert("Error saving job: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to save job (Network error)', { error: err.message, method, body });
       console.error("Error saving job:", err);
       alert("Failed to save job. Check console for details.");
     }
@@ -197,10 +213,10 @@ export default function JobsManager() {
       <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-sm">
-              <th className="p-4 font-medium">Job Title</th>
-              <th className="p-4 font-medium">Company</th>
-              <th className="p-4 font-medium">Location</th>
+            <tr>
+              <th className="p-4 font-medium text-gray-500 text-sm">Job Title</th>
+              <th className="p-4 font-medium text-gray-500 text-sm">Company Type</th>
+              <th className="p-4 font-medium text-gray-500 text-sm">Location</th>
               <th className="p-4 font-medium">Status</th>
               <th className="p-4 font-medium text-right">Actions</th>
             </tr>
@@ -296,7 +312,7 @@ export default function JobsManager() {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-bold text-gray-900">{job.title}</h3>
-                  <p className="text-sm text-gray-600">{job.company_name}</p>
+                  <p className="text-sm text-gray-600">Company Type: {job.company_name}</p>
                 </div>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   job.status === 'active' ? 'bg-green-100 text-green-800' : 

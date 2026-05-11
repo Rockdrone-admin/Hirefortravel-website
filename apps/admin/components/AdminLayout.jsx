@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 
@@ -23,9 +24,9 @@ export default function AdminLayout({ children }) {
           
           {/* Mobile Top Nav */}
           <div className="md:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4 sticky top-0 z-10">
-            <div className="text-xl font-bold text-green-800">
+            <Link href="/" className="text-xl font-bold text-green-800 hover:opacity-80 transition-opacity">
               HireForTravel<span className="text-gray-400 font-normal">Admin</span>
-            </div>
+            </Link>
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="p-2 -mr-2 text-gray-600 hover:text-green-700"

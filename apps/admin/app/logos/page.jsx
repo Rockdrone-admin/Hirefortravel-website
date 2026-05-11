@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import LogoModal from '../../components/LogoModal';
+import { logCritical } from '@repo/logger';
 
 export default function LogosManager() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,8 +21,11 @@ export default function LogosManager() {
       const result = await response.json();
       if (result.success) {
         setLogos(result.data);
+      } else {
+        logCritical('Admin: API returned success:false when fetching logos', { result });
       }
     } catch (err) {
+      logCritical('Admin: Failed to fetch logos (API might be down)', { error: err.message });
       console.error("Error fetching logos:", err);
     } finally {
       setLoading(false);
@@ -41,9 +45,11 @@ export default function LogosManager() {
         setIsModalOpen(false);
         fetchLogos();
       } else {
+        logCritical('Admin: API returned success:false when saving logo', { result, logoData });
         alert("Error saving logo: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to save logo (Network error)', { error: err.message, logoData });
       console.error("Error saving logo:", err);
     }
   };
@@ -58,8 +64,11 @@ export default function LogosManager() {
       const result = await response.json();
       if (result.success) {
         fetchLogos();
+      } else {
+        logCritical('Admin: API returned success:false when toggling logo visibility', { result, id, currentStatus });
       }
     } catch (err) {
+      logCritical('Admin: Failed to toggle logo visibility (Network error)', { error: err.message, id, currentStatus });
       console.error("Error toggling visibility:", err);
     }
   };
@@ -75,9 +84,11 @@ export default function LogosManager() {
       if (result.success) {
         fetchLogos();
       } else {
+        logCritical('Admin: API returned success:false when deleting logo', { result, id });
         alert("Error deleting logo: " + result.error);
       }
     } catch (err) {
+      logCritical('Admin: Failed to delete logo (Network error)', { error: err.message, id });
       console.error("Error deleting logo:", err);
     }
   };
