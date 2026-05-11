@@ -46,3 +46,6 @@ scratch/
 apps/admin/scratch/
 apps/api/scratch/
 apps/website/scratch/
+
+.vercel
+.env*.local

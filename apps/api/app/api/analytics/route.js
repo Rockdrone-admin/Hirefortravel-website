@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -34,6 +36,11 @@ export async function POST(req) {
       environment
     };
 
+    if (!supabase) {
+      console.error('Supabase client not initialized. Check environment variables.');
+      return NextResponse.json({ success: false, error: 'Database connection not available' }, { status: 500, headers: corsHeaders });
+    }
+
     const { data, error } = await supabase
       .from('analytics_events')
       .insert([eventData])
@@ -55,6 +62,11 @@ export async function GET(req) {
   try {
     const environment = getEnvironment();
     
+    if (!supabase) {
+      console.error('Supabase client not initialized. Check environment variables.');
+      return NextResponse.json({ success: false, error: 'Database connection not available' }, { status: 500, headers: corsHeaders });
+    }
+
     const { data: events, error } = await supabase
       .from('analytics_events')
       .select('*')
