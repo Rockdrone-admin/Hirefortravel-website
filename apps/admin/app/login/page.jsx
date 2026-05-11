@@ -21,16 +21,26 @@ export default function Login() {
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Compare with the hardcoded hash for 'Shweta@6264'
-      const targetHash = '9a66d95392500d074b8932463e2646c2415d7f722c1598460613276615b3c3c7';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      
+      const response = await fetch(`${API_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: username, 
+          password_hash: hashHex 
+        })
+      });
 
-      if (username === 'HireForTravel' && hashHex === targetHash) {
+      const result = await response.json();
+
+      if (result.success) {
         // Set a simple cookie
         document.cookie = "hft_session=true; path=/; max-age=86400"; // 24 hours
         router.push('/');
         router.refresh();
       } else {
-        setError('Invalid username or password');
+        setError(result.error || 'Invalid username or password');
         setLoading(false);
       }
     } catch (err) {
