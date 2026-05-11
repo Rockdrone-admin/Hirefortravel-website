@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata({ searchParams }) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
   const jobId = searchParams?.job;
@@ -13,6 +15,7 @@ export async function generateMetadata({ searchParams }) {
 
   try {
     const res = await fetch(`${API_URL}/api/jobs`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
     if (data.success) {
       const job = data.data.find(j => String(j.id) === String(jobId));
@@ -47,6 +50,7 @@ export default async function CandidatesPage({ searchParams }) {
   try {
     // Fetch live jobs from our API (no-store ensures it never caches stale data)
     const res = await fetch(`${API_URL}/api/jobs`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
     if (data.success) {
       jobs = data.data;

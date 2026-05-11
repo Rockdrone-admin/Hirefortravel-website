@@ -4,6 +4,7 @@ export default async function LogoShowcase() {
   let logos = [];
   try {
     const res = await fetch(`${API_URL}/api/logos`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
     if (data.success) {
       logos = data.data;

@@ -8,10 +8,10 @@ export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
 }
 
-export async function GET(request) {
+export async function GET(req) {
   try {
     const environment = getEnvironment();
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const showAll = searchParams.get('all') === 'true';
     
     let query = supabase

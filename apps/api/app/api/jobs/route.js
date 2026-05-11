@@ -8,12 +8,12 @@ export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
 }
 
-export async function GET(request) {
+export async function GET(req) {
   try {
     const environment = getEnvironment();
     
     // Extract status from URL query parameters, default to 'active'
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status') || 'active';
     const statusList = statusParam.split(',');
     

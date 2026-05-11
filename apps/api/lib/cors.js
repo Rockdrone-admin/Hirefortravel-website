@@ -18,11 +18,19 @@ export function getCorsHeaders(origin) {
   const environment = getEnvironment();
   const allowed = ALLOWED_ORIGINS[environment] || [];
   
-  // If the origin is in our allowed list, return it, otherwise return the first allowed origin as a default (or null)
-  const allowedOrigin = allowed.includes(origin) ? origin : allowed[0];
+  // If no origin is provided (server-side fetch), or origin is allowed, 
+  // we return that specific origin. Otherwise, we default to the first allowed one.
+  let allowedOrigin = '*';
+  if (!origin) {
+    allowedOrigin = '*'; // Allow server-side/no-origin calls
+  } else if (allowed.includes(origin)) {
+    allowedOrigin = origin;
+  } else {
+    allowedOrigin = allowed[0];
+  }
 
   return {
-    'Access-Control-Allow-Origin': allowedOrigin || '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'X-Robots-Tag': 'noindex, nofollow',
