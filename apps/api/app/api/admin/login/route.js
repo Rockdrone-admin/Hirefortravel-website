@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, getEnvironment } from '../../../lib/supabase';
+import { supabase, getEnvironment } from '../../../../lib/supabase';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
