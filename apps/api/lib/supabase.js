@@ -27,7 +27,18 @@ export function getEnvironment() {
     return process.env.SUPABASE_ENVIRONMENT;
   }
 
-  // 2. Vercel deployment URL checks (e.g. dev branch or preview domains containing 'dev')
+  // 2. Dynamic host check from request headers (highly reliable at runtime)
+  try {
+    const { headers } = require('next/headers');
+    const host = headers().get('host') || '';
+    if (host.toLowerCase().includes('dev') || host.toLowerCase().includes('localhost') || host.toLowerCase().includes('127.0.0.1')) {
+      return 'development';
+    }
+  } catch (e) {
+    // Dynamic headers not available (e.g. during build or static generation)
+  }
+
+  // 3. Vercel deployment URL checks (e.g. dev branch or preview domains containing 'dev')
   if (process.env.VERCEL_URL) {
     const url = process.env.VERCEL_URL.toLowerCase();
     if (url.includes('dev') || url.includes('preview')) {
@@ -35,7 +46,7 @@ export function getEnvironment() {
     }
   }
 
-  // 3. Vercel environment status checks
+  // 4. Vercel environment status checks
   if (process.env.VERCEL_ENV === 'preview') {
     return 'development';
   }

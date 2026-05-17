@@ -18,10 +18,23 @@ export function getCorsHeaders(origin) {
   let environment = getEnvironment();
   
   // Detect if the API server itself is running in a dev/local context
-  const isDevServer = process.env.NODE_ENV !== 'production' || 
-    (process.env.VERCEL_URL && (process.env.VERCEL_URL.toLowerCase().includes('dev') || process.env.VERCEL_URL.toLowerCase().includes('preview'))) ||
-    process.env.VERCEL_ENV === 'preview' ||
-    process.env.VERCEL_GIT_COMMIT_REF === 'dev';
+  let isDevServer = false;
+  try {
+    const { headers } = require('next/headers');
+    const host = headers().get('host') || '';
+    if (host.toLowerCase().includes('dev') || host.toLowerCase().includes('localhost') || host.toLowerCase().includes('127.0.0.1')) {
+      isDevServer = true;
+    }
+  } catch (e) {
+    // Dynamic headers not available (e.g. during build)
+  }
+
+  if (!isDevServer) {
+    isDevServer = process.env.NODE_ENV !== 'production' || 
+      (process.env.VERCEL_URL && (process.env.VERCEL_URL.toLowerCase().includes('dev') || process.env.VERCEL_URL.toLowerCase().includes('preview'))) ||
+      process.env.VERCEL_ENV === 'preview' ||
+      process.env.VERCEL_GIT_COMMIT_REF === 'dev';
+  }
 
   // Extra safety: only apply the fallback to 'development' allowed origins
   // if the server itself is a dev server AND the origin is a recognized dev domain/localhost.
