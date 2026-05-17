@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { getEnvironment } from './supabase';
 
 const ALLOWED_ORIGINS = {
@@ -20,8 +21,8 @@ export function getCorsHeaders(origin) {
   // Detect if the API server itself is running in a dev/local context
   let isDevServer = false;
   try {
-    const { headers } = require('next/headers');
-    const host = headers().get('host') || '';
+    const headersList = headers();
+    const host = headersList.get('host') || '';
     if (host.toLowerCase().includes('dev') || host.toLowerCase().includes('localhost') || host.toLowerCase().includes('127.0.0.1')) {
       isDevServer = true;
     }

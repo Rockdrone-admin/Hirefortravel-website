@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
 
 import { logCritical } from '@repo/logger';
 
@@ -29,8 +30,8 @@ export function getEnvironment() {
 
   // 2. Dynamic host check from request headers (highly reliable at runtime)
   try {
-    const { headers } = require('next/headers');
-    const host = headers().get('host') || '';
+    const headersList = headers();
+    const host = headersList.get('host') || '';
     if (host.toLowerCase().includes('dev') || host.toLowerCase().includes('localhost') || host.toLowerCase().includes('127.0.0.1')) {
       return 'development';
     }
