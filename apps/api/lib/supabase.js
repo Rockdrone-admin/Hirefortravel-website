@@ -22,9 +22,27 @@ export const supabase = (supabaseUrl && supabaseKey)
   : null;
 
 export function getEnvironment() {
-  // Use SUPABASE_ENVIRONMENT if set, otherwise fallback to NODE_ENV
+  // 1. Explicit environment variable check (takes precedence)
   if (process.env.SUPABASE_ENVIRONMENT) {
     return process.env.SUPABASE_ENVIRONMENT;
   }
+
+  // 2. Vercel deployment URL checks (e.g. dev branch or preview domains containing 'dev')
+  if (process.env.VERCEL_URL) {
+    const url = process.env.VERCEL_URL.toLowerCase();
+    if (url.includes('dev') || url.includes('preview')) {
+      return 'development';
+    }
+  }
+
+  // 3. Vercel environment status checks
+  if (process.env.VERCEL_ENV === 'preview') {
+    return 'development';
+  }
+  if (process.env.VERCEL_GIT_COMMIT_REF === 'dev') {
+    return 'development';
+  }
+
+  // 4. Default fallback based on NODE_ENV
   return process.env.NODE_ENV === 'production' ? 'production' : 'development';
 }

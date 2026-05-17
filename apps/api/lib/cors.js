@@ -15,7 +15,25 @@ const ALLOWED_ORIGINS = {
 };
 
 export function getCorsHeaders(origin) {
-  const environment = getEnvironment();
+  let environment = getEnvironment();
+  
+  // Detect if the API server itself is running in a dev/local context
+  const isDevServer = process.env.NODE_ENV !== 'production' || 
+    (process.env.VERCEL_URL && (process.env.VERCEL_URL.toLowerCase().includes('dev') || process.env.VERCEL_URL.toLowerCase().includes('preview'))) ||
+    process.env.VERCEL_ENV === 'preview' ||
+    process.env.VERCEL_GIT_COMMIT_REF === 'dev';
+
+  // Extra safety: only apply the fallback to 'development' allowed origins
+  // if the server itself is a dev server AND the origin is a recognized dev domain/localhost.
+  if (isDevServer && origin && (
+    origin.includes('dev.hirefortravel.com') ||
+    origin.includes('dev-admin.hirefortravel.com') ||
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1')
+  )) {
+    environment = 'development';
+  }
+
   const allowed = ALLOWED_ORIGINS[environment] || [];
   
   // If no origin is provided (server-side fetch), or origin is allowed, 
@@ -26,7 +44,7 @@ export function getCorsHeaders(origin) {
   } else if (allowed.includes(origin)) {
     allowedOrigin = origin;
   } else {
-    allowedOrigin = allowed[0];
+    allowedOrigin = allowed[0] || '*';
   }
 
   return {
