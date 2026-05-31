@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../../../lib/supabase';
 import { getCorsHeaders } from '../../../../../lib/cors';
+import { requireAuth, logActivityEvent } from '../../../../../lib/auth';
 
 export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
@@ -9,6 +10,9 @@ export async function OPTIONS(req) {
 export async function PATCH(req, { params }) {
   try {
     const environment = getEnvironment();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth();
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
+
     const matchId = params.id;
     const body = await req.json();
     
@@ -142,7 +146,7 @@ export async function PATCH(req, { params }) {
       }
     }
 
-    // 4. WRITE AUDIT ACTIVITIES
+    // 4. WRITE AUDIT ACTIVITIES (Legacy)
     if (auditLogs.length > 0) {
       const { error: auditErr } = await supabase
         .from('prospect_activities')
@@ -151,6 +155,36 @@ export async function PATCH(req, { params }) {
       if (auditErr) {
         console.error('Failed to write override audit trails:', auditErr);
       }
+    }
+
+    // 5. WRITE TO UNIFIED GLOBAL EVENT STORE (activity_events)
+    if (auditLogs.length > 0) {
+      let logType = 'UPDATE_CANDIDATE';
+      let logTitle = `Updated overrides/details for candidate ${currentProspect.name || 'Profile'}`;
+
+      const stageChange = auditLogs.find(log => log.metadata?.field === 'stage');
+      if (stageChange) {
+        logType = 'CHANGE_STAGE';
+        logTitle = `Changed stage to ${stageChange.new_value} for ${currentProspect.name || 'Candidate'}`;
+      }
+
+      await logActivityEvent({
+        user: authUser,
+        event_type: logType,
+        entity_type: 'prospect',
+        entity_id: prospectId,
+        title: logTitle,
+        description: reason || null,
+        metadata: {
+          job_id: jobId,
+          changes: auditLogs.map(l => ({
+            field: l.metadata?.field,
+            prev: l.previous_value,
+            next: l.new_value
+          }))
+        },
+        environment
+      });
     }
 
     // Return the updated match state
@@ -194,12 +228,12 @@ export async function GET(req, { params }) {
       return NextResponse.json({ success: false, error: 'Prospect match record not found' }, { status: 404, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
-    // 2. Fetch full timeline (prospect_activities)
+    // 2. Fetch full timeline from unified global event store (activity_events)
     const { data: activities } = await supabase
-      .from('prospect_activities')
+      .from('activity_events')
       .select('*')
-      .eq('prospect_id', match.prospect_id)
-      .eq('job_id', match.job_id)
+      .eq('entity_type', 'prospect')
+      .eq('entity_id', String(match.prospect_id))
       .eq('environment', environment)
       .order('created_at', { ascending: false });
 

@@ -1079,6 +1079,17 @@ export default function AISourcingPage() {
                   </div>
                 </div>
 
+                {inspectionJob.notes && inspectionJob.notes.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Special Notes</label>
+                    <div className="w-full px-4 py-3 rounded-lg border border-gray-150 bg-gray-50/50 text-gray-600 text-xs">
+                      <ul className="list-disc pl-4 space-y-1.5 font-medium leading-relaxed">
+                        {inspectionJob.notes.map((n, i) => <li key={i}>{n}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
                 {inspectionJob.responsibilities && inspectionJob.responsibilities.length > 0 && (
                   <div>
                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Key Responsibilities</label>

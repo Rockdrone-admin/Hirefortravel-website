@@ -11,7 +11,7 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   try {
     const environment = getEnvironment();
-    const { user, error: authError, status: authStatus } = await requireAuth('can_manage_users');
+    const { user, error: authError, status: authStatus } = await requireAuth();
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const { data: users, error } = await supabase

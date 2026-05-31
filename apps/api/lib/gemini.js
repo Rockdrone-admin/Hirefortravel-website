@@ -79,7 +79,8 @@ export async function parseJobDetailsAndGenerateDorks(job, existingTitles = [], 
   const competitorsText = competitorsListStr ? `Known Target Competitor Companies (Internal Use Only): ${competitorsListStr}\n` : '';
   const altTitlesListStr = Array.isArray(job.alternative_titles) ? job.alternative_titles.join(', ') : '';
   const altTitlesText = altTitlesListStr ? `Suggested Alternative Titles (Internal Use Only): ${altTitlesListStr}\n` : '';
-  const notesText = job.notes ? `Special Notes & Role Specifications: ${job.notes}\n` : '';
+  const notesListStr = Array.isArray(job.notes) ? job.notes.join(', ') : job.notes || '';
+  const notesText = notesListStr ? `Special Notes & Role Specifications (Internal Use Only): ${notesListStr}\n` : '';
 
   let competitorInstruction = '';
   if (competitorsListStr) {
@@ -227,7 +228,9 @@ export async function scoreAndEvaluateProspect(job, prospect) {
   const realCompanyText = job.real_company_name ? `Hiring Company (Internal Use Only): ${job.real_company_name}\n` : '';
   const competitorsListStr = Array.isArray(job.competitors) ? job.competitors.join(', ') : '';
   const competitorsText = competitorsListStr ? `Known Direct Competitor Companies (Internal Use Only): ${competitorsListStr}\n` : '';
-  const notesText = job.notes ? `Special Notes & Role Specifications: ${job.notes}\n` : '';
+  const notesListStr = Array.isArray(job.notes) ? job.notes.join(', ') : job.notes || '';
+  const notesText = notesListStr ? `Special Notes & Role Specifications: ${notesListStr}\n` : '';
+  const responsibilitiesText = Array.isArray(job.responsibilities) ? JSON.stringify(job.responsibilities) : '[]';
 
   let scoringCompetitorInstruction = '';
   if (competitorsListStr) {
@@ -239,14 +242,28 @@ export async function scoreAndEvaluateProspect(job, prospect) {
     `;
   }
 
+  let scoringNotesInstruction = '';
+  if (notesListStr) {
+    scoringNotesInstruction = `
+    
+    CRITICAL SPECIAL NOTES & MANDATORY PREFERENCES:
+    The employer has specified these mandatory/highly-preferred criteria: ${notesListStr}.
+    You MUST strictly evaluate the candidate's profile against these special specifications. If they fail to meet a critical preference or requirement mentioned here (e.g. night shifts, immediate joiners, specific region/experience), reflect this explicitly in your match reasoning and reduce their score accordingly.
+    `;
+  }
+
   const prompt = `
     You are an expert technical recruiter. 
     Evaluate the suitability of the candidate prospect for the following Job Description (JD).
     
     --- JOB DETAILS ---
     Title: ${job.title}
+    Location: ${job.location || 'Unknown'}
+    Salary Range: ${job.salary || 'Not specified'}
+    Benefits: ${Array.isArray(job.benefits) ? job.benefits.join(', ') : job.benefits || 'None specified'}
     ${realCompanyText}${competitorsText}${notesText}Target Experience: ${job.experience}
     About the Role: ${job.about_role}
+    Key Responsibilities: ${responsibilitiesText}
     Requirements: ${JSON.stringify(job.requirements)}
     
     --- CANDIDATE PROSPECT DETAILS ---
@@ -265,6 +282,7 @@ export async function scoreAndEvaluateProspect(job, prospect) {
     INSTRUCTIONS FOR EVALUATION & SCORING:
        - ${instructionsText}
        ${scoringCompetitorInstruction}
+       ${scoringNotesInstruction}
     
     Return your response strictly in the JSON format specified in the schema, detailing the scores array containing each factor name and its given grade.
   `;

@@ -163,16 +163,35 @@ export async function PATCH(req, { params }) {
       }
     }
 
-    // 5. WRITE GLOBAL ACTIVITY EVENT
-    await logActivityEvent({
-      user: authUser,
-      event_type: logType,
-      entity_type: 'CANDIDATE',
-      entity_id: prospectId,
-      title: logTitle,
-      metadata: { job_id: jobId, logs: auditLogs.length },
-      environment
-    });
+    // 5. WRITE TO UNIFIED GLOBAL EVENT STORE (activity_events)
+    if (auditLogs.length > 0) {
+      let logType = 'UPDATE_CANDIDATE';
+      let logTitle = `Updated overrides/details for candidate ${currentProspect.name || 'Profile'}`;
+
+      const stageChange = auditLogs.find(log => log.metadata?.field === 'stage');
+      if (stageChange) {
+        logType = 'CHANGE_STAGE';
+        logTitle = `Changed stage to ${stageChange.new_value} for ${currentProspect.name || 'Candidate'}`;
+      }
+
+      await logActivityEvent({
+        user: authUser,
+        event_type: logType,
+        entity_type: 'prospect',
+        entity_id: prospectId,
+        title: logTitle,
+        description: reason || null,
+        metadata: {
+          job_id: jobId,
+          changes: auditLogs.map(l => ({
+            field: l.metadata?.field,
+            prev: l.previous_value,
+            next: l.new_value
+          }))
+        },
+        environment
+      });
+    }
 
     // Return the updated match state
     const { data: updatedMatch } = await supabase
@@ -215,12 +234,12 @@ export async function GET(req, { params }) {
       return NextResponse.json({ success: false, error: 'Prospect match record not found' }, { status: 404, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
-    // 2. Fetch full timeline (prospect_activities)
+    // 2. Fetch full timeline from unified global event store (activity_events)
     const { data: activities } = await supabase
-      .from('prospect_activities')
+      .from('activity_events')
       .select('*')
-      .eq('prospect_id', match.prospect_id)
-      .eq('job_id', match.job_id)
+      .eq('entity_type', 'prospect')
+      .eq('entity_id', String(match.prospect_id))
       .eq('environment', environment)
       .order('created_at', { ascending: false });
 

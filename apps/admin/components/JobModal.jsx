@@ -305,18 +305,22 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Real Company Name <span className="text-red-500">*</span></label>
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <label className="block text-xs font-bold text-gray-700 uppercase">Real Company Name</label>
+                  </div>
                   <input 
                     type="text" 
                     value={formData.real_company_name}
                     onChange={(e) => setFormData({...formData, real_company_name: e.target.value})}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none bg-white font-medium text-gray-800 text-sm transition-all" 
                     placeholder="e.g. Travel Bullz" 
-                    required 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Competitor Companies (Comma-separated)</label>
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <label className="block text-xs font-bold text-gray-700 uppercase">Competitor Companies</label>
+                    <span className="text-[10px] font-medium text-gray-400 normal-case">(Comma-separated)</span>
+                  </div>
                   <input 
                     type="text" 
                     value={formData.competitors}
@@ -326,7 +330,10 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Alternative Titles (Comma-separated)</label>
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <label className="block text-xs font-bold text-gray-700 uppercase">Alternative Titles</label>
+                    <span className="text-[10px] font-medium text-gray-400 normal-case">(Comma-separated)</span>
+                  </div>
                   <input 
                     type="text" 
                     value={formData.alternative_titles}

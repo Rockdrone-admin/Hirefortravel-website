@@ -11,10 +11,29 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   // Form states
   const [profile, setProfile] = useState({});
   const [match, setMatch] = useState({});
-  const [overrideReason, setOverrideReason] = useState('');
   const [outreachDraft, setOutreachDraft] = useState('');
+  const [users, setUsers] = useState([]);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+
+  // Load admin users list for recruiter owner assignment dropdown
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch(`${API_URL}/api/admin/users`, { credentials: 'include' });
+        const result = await res.json();
+        if (result.success && result.data) {
+          const sortedUsers = result.data
+            .filter(u => u.is_active)
+            .sort((a, b) => a.username.localeCompare(b.username));
+          setUsers(sortedUsers);
+        }
+      } catch (err) {
+        console.error("Failed to load admin users inside ProspectDrawer:", err);
+      }
+    }
+    fetchUsers();
+  }, []);
 
   // Load dynamic weighting configuration factors
   useEffect(() => {
@@ -96,7 +115,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
           tags: Array.isArray(match.tags) ? match.tags : typeof match.tags === 'string' ? match.tags.split(',').map(t => t.trim()) : []
         },
         changedBy: 'Admin Recruiter', // fallback to session
-        reason: overrideReason
+        reason: match.human_notes
       };
 
       const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
@@ -175,6 +194,26 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
     });
     factorScores[maxItemIdx].roundedPoints += diff;
   }
+
+  // 3. Dynamic audit justification logic
+  const hasProfileChanged = data?.prospect && (
+    (profile.name || '') !== (data.prospect.name || '') ||
+    (profile.email || '') !== (data.prospect.email || '') ||
+    (profile.phone || '') !== (data.prospect.phone || '') ||
+    (profile.city || '') !== (data.prospect.city || '') ||
+    (profile.linkedin_url || '') !== (data.prospect.linkedin_url || '') ||
+    (profile.latest_title || '') !== (data.prospect.latest_title || '') ||
+    (profile.latest_company || '') !== (data.prospect.latest_company || '') ||
+    (profile.total_experience || '') !== (data.prospect.total_experience || '') ||
+    (profile.functional_field || '') !== (data.prospect.functional_field || '')
+  );
+
+  const hasMatchFieldsChanged = data && (
+    (match.stage || 'IDENTIFIED') !== (data.stage || 'IDENTIFIED') ||
+    (match.manual_score || '') !== (data.manual_score || '')
+  );
+
+  const isJustificationRequired = hasProfileChanged || hasMatchFieldsChanged;
 
   return (
     <div className="fixed inset-0 z-40 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
@@ -413,13 +452,16 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase">Assigned Owner</label>
-                          <input 
-                            type="text" 
-                            placeholder="Enter recruiter name" 
+                          <select
                             value={match.owner || ''} 
                             onChange={(e) => setMatch({ ...match, owner: e.target.value })}
-                            className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-green-800 focus:border-green-800 text-sm"
-                          />
+                            className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-green-800 focus:border-green-800 text-sm bg-white"
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.username}>{u.username}</option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase">Tags (comma separated)</label>
@@ -433,72 +475,92 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                         </div>
                       </div>
 
-                      {/* AI Reasoning Display (Preserved historically) */}
-                      {match.ai_reasoning && (
-                        <div className="space-y-4 mt-4">
-                          
-                          {/* AI Score Breakdown Dashboard Widget */}
-                          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-xs shadow-sm">
-                            <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-700"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                              AI Sourcing Score Breakdown
-                            </h4>
-                            
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {factorScores.map((f, idx) => {
-                                const score = f.score || 50;
-                                const barColor = score >= 90 ? 'bg-emerald-600' : score >= 80 ? 'bg-blue-600' : score >= 70 ? 'bg-amber-500' : 'bg-rose-500';
-                                const badgeColor = score >= 90 ? 'bg-emerald-100 text-emerald-800' : score >= 80 ? 'bg-blue-100 text-blue-800' : score >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
-                                
-                                return (
-                                  <div key={idx} className="space-y-1.5 bg-white border border-gray-100 p-3 rounded-lg shadow-2xs">
-                                    <div className="flex justify-between items-center">
-                                      <div className="flex flex-col">
-                                        <span className="font-bold text-gray-700 capitalize text-[11px] truncate max-w-[155px]" title={f.factorName}>{f.factorName}</span>
-                                        <span className="text-[9px] text-gray-400 font-semibold mt-0.5">
-                                          Weight: {f.weight}% &bull; Grade: {score}%
-                                        </span>
-                                      </div>
-                                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${badgeColor} whitespace-nowrap`}>
-                                        {f.roundedPoints} / {f.weight} pts
-                                      </span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden shadow-inner border border-gray-200/20">
-                                      <div 
-                                        style={{ width: `${f.weight > 0 ? (f.roundedPoints / f.weight) * 100 : 0}%` }}
-                                        className={`${barColor} h-full rounded-full transition-all duration-500`}
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Fit Reasoning Text */}
-                          <div className="bg-green-50/20 border border-green-100/50 rounded-xl p-5 text-xs shadow-sm">
-                            <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-700"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                              AI Sourcing Fit Analysis
-                            </h4>
-                            <p className="text-gray-600 leading-relaxed font-semibold italic">"{match.ai_reasoning}"</p>
-                          </div>
-
-                        </div>
-                      )}
-
-                      <div className="mt-4">
-                        <label className="block text-xs font-bold text-gray-500 uppercase">Recruiter Notes / Remarks</label>
+                      {/* Recruiter Notes & Change Remarks (Unified Input) */}
+                      <div className="mt-6">
+                        <label className={`block text-xs font-bold uppercase transition-colors duration-250 ${isJustificationRequired ? 'text-rose-600' : 'text-gray-500'}`}>
+                          Recruiter Notes & Change Remarks{' '}
+                          {isJustificationRequired ? (
+                            <span className="text-rose-600 font-extrabold">* (Required for Audit Trail)</span>
+                          ) : (
+                            <span className="text-gray-400 font-medium">(Optional)</span>
+                          )}
+                        </label>
                         <textarea
-                          rows="3"
+                          rows="4"
                           value={match.human_notes || ''}
                           onChange={(e) => setMatch({ ...match, human_notes: e.target.value })}
-                          className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-green-800 focus:border-green-800 text-sm"
-                          placeholder="Add any recruitment remarks or call summaries here..."
+                          className={`mt-1.5 w-full border rounded-md shadow-sm text-sm focus:ring-green-800 focus:border-green-800 transition-all duration-250 ${
+                            isJustificationRequired 
+                              ? 'border-rose-300 bg-rose-50/15 focus:ring-rose-500 focus:border-rose-500' 
+                              : 'border-gray-300 bg-white'
+                          }`}
+                          placeholder={
+                            isJustificationRequired 
+                              ? "You have modified critical candidate data. A brief override justification/remark is required to log changes..." 
+                              : "Add any recruitment remarks or call summaries here..."
+                          }
+                          required={isJustificationRequired}
                         />
                       </div>
                     </div>
 
+                    {/* AI SOURCING & FIT INSIGHTS (Grouped below overrides) */}
+                    {match.ai_reasoning && (
+                      <div className="space-y-4">
+                        <h3 className="text-base font-bold text-gray-800 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-700"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M21 12H3M12 3v18"/></svg>
+                          AI Sourcing & Fit Insights
+                        </h3>
+                        
+                        {/* AI Score Breakdown Dashboard Widget */}
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-xs shadow-sm">
+                          <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-700"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                            AI Sourcing Score Breakdown
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {factorScores.map((f, idx) => {
+                              const score = f.score || 50;
+                              const barColor = score >= 90 ? 'bg-emerald-600' : score >= 80 ? 'bg-blue-600' : score >= 70 ? 'bg-amber-500' : 'bg-rose-500';
+                              const badgeColor = score >= 90 ? 'bg-emerald-100 text-emerald-800' : score >= 80 ? 'bg-blue-100 text-blue-800' : score >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
+                              
+                              return (
+                                <div key={idx} className="space-y-1.5 bg-white border border-gray-100 p-3 rounded-lg shadow-2xs">
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-gray-700 capitalize text-[11px] truncate max-w-[155px]" title={f.factorName}>{f.factorName}</span>
+                                      <span className="text-[9px] text-gray-400 font-semibold mt-0.5">
+                                        Weight: {f.weight}% &bull; Grade: {score}%
+                                      </span>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${badgeColor} whitespace-nowrap`}>
+                                      {f.roundedPoints} / {f.weight} pts
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden shadow-inner border border-gray-200/20">
+                                    <div 
+                                      style={{ width: `${f.weight > 0 ? (f.roundedPoints / f.weight) * 100 : 0}%` }}
+                                      className={`${barColor} h-full rounded-full transition-all duration-500`}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Fit Reasoning Text */}
+                        <div className="bg-green-50/20 border border-green-100/50 rounded-xl p-5 text-xs shadow-sm">
+                          <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-700"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            AI Sourcing Fit Analysis
+                          </h4>
+                          <p className="text-gray-600 leading-relaxed font-semibold italic">"{match.ai_reasoning}"</p>
+                        </div>
+                      </div>
+                    )}
+  
                     {/* OUTREACH COPY SECTION */}
                     <div className="bg-green-50/50 border border-green-200 rounded-lg p-5">
                       <h3 className="text-sm font-bold text-green-800 mb-2 flex items-center gap-1.5">
@@ -524,27 +586,14 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                         Copy outreach template
                       </button>
                     </div>
-
-                    {/* OVERRIDE REASON (REQUIRED FOR CHANGES) */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <label className="block text-xs font-bold text-yellow-800 uppercase">Change/Override Justification (Required for Audit Trail)</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="e.g. Candidate confirmed they possess these skills, corrected name..." 
-                        value={overrideReason} 
-                        onChange={(e) => setOverrideReason(e.target.value)}
-                        className="mt-1.5 w-full border-yellow-300 rounded-md shadow-sm focus:ring-yellow-600 focus:border-yellow-600 text-sm bg-white"
-                      />
-                    </div>
-
-                    {/* ACTIVITY TIMELINE HISTORY */}
+  
+                    {/* ACTIVITY TIMELINE HISTORY (Unified View) */}
                     <div>
                       <h3 className="text-base font-bold text-gray-800 border-b border-gray-100 pb-2 mb-6 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-700"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         Prospect Activity & Audit Trail
                       </h3>
-                      <ActivityTimeline timeline={data?.timeline || []} />
+                      <ActivityTimeline entityType="prospect" entityId={profile.id} title="Recent Candidate Timeline" />
                     </div>
 
                   </div>
@@ -560,9 +609,11 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                     </button>
                     <button
                       type="submit"
-                      disabled={saving || !overrideReason}
+                      disabled={saving || (isJustificationRequired && !match.human_notes?.trim())}
                       className={`px-5 py-2 rounded-md shadow-sm text-sm font-bold text-white transition-colors ${
-                        saving || !overrideReason ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-700 hover:bg-green-800'
+                        saving || (isJustificationRequired && !match.human_notes?.trim())
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-green-700 hover:bg-green-800'
                       }`}
                     >
                       {saving ? 'Saving...' : 'Save & Log Changes'}

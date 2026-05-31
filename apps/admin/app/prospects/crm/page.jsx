@@ -107,6 +107,7 @@ export default function ProspectsCRMBoard() {
   const [bulkTags, setBulkTags] = useState('');
   const [bulkReason, setBulkReason] = useState('');
   const [executingBulk, setExecutingBulk] = useState(false);
+  const [users, setUsers] = useState([]);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -122,6 +123,21 @@ export default function ProspectsCRMBoard() {
             setNewProspect(prev => ({ ...prev, jobId: jobsResult.data[0].id }));
           }
         }
+        
+        // Fetch active admin users list for owner dropdowns
+        try {
+          const usersRes = await fetch(`${API_URL}/api/admin/users`, { credentials: 'include' });
+          const usersResult = await usersRes.json();
+          if (usersResult.success && usersResult.data) {
+            const sortedUsers = usersResult.data
+              .filter(u => u.is_active)
+              .sort((a, b) => a.username.localeCompare(b.username));
+            setUsers(sortedUsers);
+          }
+        } catch (e) {
+          console.error("Failed to load admin users list in CRM:", e);
+        }
+
         await fetchCRMProspects();
       } catch (err) {
         console.error("Error loading CRM board data:", err);
@@ -517,7 +533,18 @@ export default function ProspectsCRMBoard() {
                     {ALL_STAGES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 )}
-                {bulkAction === 'owner' && <input type="text" placeholder="Recruiter Name" value={bulkOwner} onChange={(e) => setBulkOwner(e.target.value)} className="w-full border-gray-300 rounded text-xs" />}
+                {bulkAction === 'owner' && (
+                  <select 
+                    value={bulkOwner} 
+                    onChange={(e) => setBulkOwner(e.target.value)} 
+                    className="w-full border-gray-300 rounded text-xs bg-white focus:ring-green-700"
+                  >
+                    <option value="">-- Select Recruiter --</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.username}>{u.username}</option>
+                    ))}
+                  </select>
+                )}
                 {bulkAction === 'tags' && <input type="text" placeholder="e.g. star, top-tier" value={bulkTags} onChange={(e) => setBulkTags(e.target.value)} className="w-full border-gray-300 rounded text-xs" />}
               </div>
               <div className="md:col-span-1">
@@ -873,6 +900,19 @@ export default function ProspectsCRMBoard() {
                 </div>
 
                 {/* Row 6 */}
+                <div className="col-span-2">
+                  <label className="font-bold text-gray-500 mb-1 block">Assigned Recruiter / Owner (Optional)</label>
+                  <select 
+                    value={newProspect.owner} 
+                    onChange={e => setNewProspect({...newProspect, owner: e.target.value})} 
+                    className="w-full border-gray-300 rounded focus:ring-green-700 bg-white"
+                  >
+                    <option value="">Unassigned</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.username}>{u.username}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="col-span-2">
                   <label className="font-bold text-gray-500 mb-1 block">Justification Notes *</label>
                   <textarea required value={newProspect.remarks} onChange={e => setNewProspect({...newProspect, remarks: e.target.value})} className="w-full border-gray-300 rounded focus:ring-green-700" rows="3" placeholder="Enter justification or recruitment remarks for adding this candidate manually..."></textarea>
