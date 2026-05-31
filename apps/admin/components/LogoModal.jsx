@@ -33,7 +33,7 @@ export default function LogoModal({ isOpen, onClose, onSave }) {
       formData.append('bucket', 'logos');
       formData.append('path', `clients/${Date.now()}-${file.name.replace(/\s+/g, '-')}`);
 
-      const uploadRes = await fetch(`${API_URL}/api/upload`, {
+      const uploadRes = await fetch(`${API_URL}/api/upload`, { credentials: 'include', 
         method: 'POST',
         body: formData,
       });

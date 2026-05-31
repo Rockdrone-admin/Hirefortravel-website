@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import ActivityTimeline from '../components/ActivityTimeline';
 
 export default function AdminDashboard() {
   const [timeRange, setTimeRange] = useState('today');
@@ -22,7 +23,7 @@ export default function AdminDashboard() {
       try {
         setLoading(true);
         const rangeValue = timeRange === 'custom' ? customDays : timeRange;
-        const response = await fetch(`${API_URL}/api/dashboard?range=${rangeValue}`);
+        const response = await fetch(`${API_URL}/api/dashboard?range=${rangeValue}`, { credentials: 'include' });
         const result = await response.json();
         if (result.success) {
           setData(result.data);

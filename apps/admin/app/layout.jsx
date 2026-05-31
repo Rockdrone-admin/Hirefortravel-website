@@ -1,4 +1,5 @@
 import './globals.css';
+import { cookies } from 'next/headers';
 import AdminLayout from '../components/AdminLayout';
 
 export const metadata = {
@@ -11,6 +12,8 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  cookies();
+
   return (
     <html lang="en">
       <AdminLayout>{children}</AdminLayout>

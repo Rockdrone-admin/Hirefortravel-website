@@ -22,7 +22,7 @@ export default function JobsManager() {
     try {
       setLoading(true);
       const statusQuery = activeTab === 'active' ? 'active,inactive' : activeTab;
-      const response = await fetch(`${API_URL}/api/jobs?status=${statusQuery}`, { cache: 'no-store' });
+      const response = await fetch(`${API_URL}/api/jobs?status=${statusQuery}`, { credentials: 'include',  cache: 'no-store' });
       const result = await response.json();
       if (result.success) {
         setJobs(result.data);
@@ -46,7 +46,7 @@ export default function JobsManager() {
     if (!confirm("Are you sure you want to archive this job?")) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/jobs`, {
+      const response = await fetch(`${API_URL}/api/jobs`, { credentials: 'include', 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'archived' }),
@@ -66,7 +66,7 @@ export default function JobsManager() {
 
   const handleUnarchiveJob = async (id) => {
     try {
-      const response = await fetch(`${API_URL}/api/jobs`, {
+      const response = await fetch(`${API_URL}/api/jobs`, { credentials: 'include', 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'active' }),
@@ -87,7 +87,7 @@ export default function JobsManager() {
   const handleToggleStatus = async (job) => {
     const newStatus = job.status === 'active' ? 'inactive' : 'active';
     try {
-      const response = await fetch(`${API_URL}/api/jobs`, {
+      const response = await fetch(`${API_URL}/api/jobs`, { credentials: 'include', 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: job.id, status: newStatus }),
@@ -118,7 +118,7 @@ export default function JobsManager() {
         status: 'inactive'
       };
 
-      const response = await fetch(`${API_URL}/api/jobs`, {
+      const response = await fetch(`${API_URL}/api/jobs`, { credentials: 'include', 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(duplicateData),
@@ -140,7 +140,7 @@ export default function JobsManager() {
     if (!confirm("PERMANENTLY delete this job? This cannot be undone.")) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/jobs?id=${id}`, {
+      const response = await fetch(`${API_URL}/api/jobs?id=${id}`, { credentials: 'include', 
         method: 'DELETE',
       });
       const result = await response.json();
@@ -161,7 +161,7 @@ export default function JobsManager() {
       const method = editingJob ? 'PATCH' : 'POST';
       const body = editingJob ? { id: editingJob.id, ...jobData } : jobData;
 
-      const response = await fetch(`${API_URL}/api/jobs`, {
+      const response = await fetch(`${API_URL}/api/jobs`, { credentials: 'include', 
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -217,6 +217,7 @@ export default function JobsManager() {
               <th className="p-4 font-medium text-gray-500 text-sm">Job Title</th>
               <th className="p-4 font-medium text-gray-500 text-sm">Company Type</th>
               <th className="p-4 font-medium text-gray-500 text-sm">Location</th>
+              <th className="p-4 font-medium text-gray-500 text-sm">Openings</th>
               <th className="p-4 font-medium">Status</th>
               <th className="p-4 font-medium text-right">Actions</th>
             </tr>
@@ -232,6 +233,7 @@ export default function JobsManager() {
                   <td className="p-4 font-medium text-gray-900">{job.title}</td>
                   <td className="p-4 text-gray-600">{job.company_name}</td>
                   <td className="p-4 text-gray-600">{job.location}</td>
+                  <td className="p-4 text-gray-600 font-bold">{job.number_of_openings || 1}</td>
                   <td className="p-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       job.status === 'active' ? 'bg-green-100 text-green-800' : 
@@ -325,6 +327,7 @@ export default function JobsManager() {
               <div className="text-sm text-gray-500">
                 <span className="font-medium text-gray-700">Location:</span> {job.location}
               </div>
+              <div className="text-[11px] text-gray-400 font-bold mt-0.5 uppercase tracking-wider">Openings: {job.number_of_openings || 1}</div>
               <div className="pt-3 border-t border-gray-100 flex flex-wrap gap-2 justify-end">
                 {activeTab === 'active' ? (
                   <>

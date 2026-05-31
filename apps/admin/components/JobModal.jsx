@@ -11,8 +11,26 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
     about_role: '',
     responsibilities: '',
     requirements: '',
-    benefits: ''
+    benefits: '',
+    real_company_name: '',
+    competitors: '',
+    alternative_titles: '',
+    number_of_openings: 1,
+    notes: ''
   });
+
+  const formatListForTextarea = (arr) => {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return '';
+    return arr.map(item => `• ${item.replace(/^\s*(?:[\u2022*-])\s*/, '').trim()}`).join('\n');
+  };
+
+  const cleanListForSave = (str) => {
+    if (!str) return [];
+    return str
+      .split('\n')
+      .map(line => line.replace(/^\s*(?:[\u2022*-])\s*/, '').trim())
+      .filter(Boolean);
+  };
 
   useEffect(() => {
     if (job) {
@@ -23,9 +41,14 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
         experience: job.experience || '',
         salary: job.salary || '',
         about_role: job.about_role || '',
-        responsibilities: job.responsibilities ? job.responsibilities.join('\n') : '',
-        requirements: job.requirements ? job.requirements.join('\n') : '',
-        benefits: job.benefits ? job.benefits.join('\n') : ''
+        responsibilities: formatListForTextarea(job.responsibilities),
+        requirements: formatListForTextarea(job.requirements),
+        benefits: formatListForTextarea(job.benefits),
+        real_company_name: job.real_company_name || '',
+        competitors: job.competitors ? job.competitors.join(', ') : '',
+        alternative_titles: job.alternative_titles ? job.alternative_titles.join(', ') : '',
+        number_of_openings: job.number_of_openings || 1,
+        notes: formatListForTextarea(job.notes)
       });
     } else {
       setFormData({
@@ -37,21 +60,76 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
         about_role: '',
         responsibilities: '',
         requirements: '',
-        benefits: ''
+        benefits: '',
+        real_company_name: '',
+        competitors: '',
+        alternative_titles: '',
+        number_of_openings: 1,
+        notes: ''
       });
     }
   }, [job, isOpen]);
 
   if (!isOpen) return null;
 
+  const handleListChange = (e, field) => {
+    setFormData(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleListFocus = (e, field) => {
+    const val = e.target.value;
+    if (!val.trim()) {
+      setFormData(prev => ({ ...prev, [field]: '• ' }));
+      const textarea = e.target;
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = 2;
+      }, 0);
+    }
+  };
+
+  const handleListKeyDown = (e, field) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const textarea = e.target;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+
+      // Insert newline and bullet point at current cursor position
+      const newValue = value.substring(0, start) + '\n• ' + value.substring(end);
+      setFormData(prev => ({ ...prev, [field]: newValue }));
+
+      // Reset selection position after React updates the DOM
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 3; // length of '\n• ' is 3
+      }, 0);
+    }
+  };
+
+  const handleListBlur = (e, field) => {
+    const val = e.target.value;
+    const lines = val.split('\n');
+    const formatted = lines
+      .map(line => {
+        const clean = line.replace(/^\s*(?:[\u2022*-])\s*/, '').trim();
+        return clean ? `• ${clean}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+    setFormData(prev => ({ ...prev, [field]: formatted }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Convert textarea lines to arrays
     const formattedData = {
       ...formData,
-      responsibilities: formData.responsibilities.split('\n').filter(line => line.trim() !== ''),
-      requirements: formData.requirements.split('\n').filter(line => line.trim() !== ''),
-      benefits: formData.benefits.split('\n').filter(line => line.trim() !== ''),
+      responsibilities: cleanListForSave(formData.responsibilities),
+      requirements: cleanListForSave(formData.requirements),
+      benefits: cleanListForSave(formData.benefits),
+      notes: cleanListForSave(formData.notes),
+      competitors: formData.competitors ? formData.competitors.split(',').map(c => c.trim()).filter(Boolean) : [],
+      alternative_titles: formData.alternative_titles ? formData.alternative_titles.split(',').map(t => t.trim()).filter(Boolean) : [],
+      number_of_openings: parseInt(formData.number_of_openings, 10) || 1,
       status: job ? job.status : 'active'
     };
     onSave(formattedData);
@@ -99,7 +177,7 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
                 <input 
@@ -133,6 +211,17 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">No. of Openings</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  value={formData.number_of_openings}
+                  onChange={(e) => setFormData({...formData, number_of_openings: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none transition-all" 
+                  required
+                />
+              </div>
             </div>
 
             <div>
@@ -147,12 +236,28 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
             </div>
 
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Special Notes (One per line, optional)</label>
+              <textarea 
+                value={formData.notes}
+                onChange={(e) => handleListChange(e, 'notes')}
+                onFocus={(e) => handleListFocus(e, 'notes')}
+                onKeyDown={(e) => handleListKeyDown(e, 'notes')}
+                onBlur={(e) => handleListBlur(e, 'notes')}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none transition-all min-h-[80px]" 
+                placeholder="• Night shift required...&#10;• Immediate joiner preferred..."
+              ></textarea>
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Key Responsibilities (One per line)</label>
               <textarea 
                 value={formData.responsibilities}
-                onChange={(e) => setFormData({...formData, responsibilities: e.target.value})}
+                onChange={(e) => handleListChange(e, 'responsibilities')}
+                onFocus={(e) => handleListFocus(e, 'responsibilities')}
+                onKeyDown={(e) => handleListKeyDown(e, 'responsibilities')}
+                onBlur={(e) => handleListBlur(e, 'responsibilities')}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none transition-all min-h-[100px]" 
-                placeholder="Handle customer queries...&#10;Manage bookings..."
+                placeholder="• Handle customer queries...&#10;• Manage bookings..."
                 required
               ></textarea>
             </div>
@@ -161,9 +266,12 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
               <label className="block text-sm font-semibold text-gray-700 mb-2">Requirements (One per line)</label>
               <textarea 
                 value={formData.requirements}
-                onChange={(e) => setFormData({...formData, requirements: e.target.value})}
+                onChange={(e) => handleListChange(e, 'requirements')}
+                onFocus={(e) => handleListFocus(e, 'requirements')}
+                onKeyDown={(e) => handleListKeyDown(e, 'requirements')}
+                onBlur={(e) => handleListBlur(e, 'requirements')}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none transition-all min-h-[100px]" 
-                placeholder="Bachelor's degree...&#10;Excellent communication..."
+                placeholder="• Bachelor's degree...&#10;• Excellent communication..."
                 required
               ></textarea>
             </div>
@@ -172,11 +280,62 @@ export default function JobModal({ isOpen, job, onClose, onSave }) {
               <label className="block text-sm font-semibold text-gray-700 mb-2">Benefits (One per line)</label>
               <textarea 
                 value={formData.benefits}
-                onChange={(e) => setFormData({...formData, benefits: e.target.value})}
+                onChange={(e) => handleListChange(e, 'benefits')}
+                onFocus={(e) => handleListFocus(e, 'benefits')}
+                onKeyDown={(e) => handleListKeyDown(e, 'benefits')}
+                onBlur={(e) => handleListBlur(e, 'benefits')}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none transition-all min-h-[100px]" 
-                placeholder="Health insurance...&#10;Remote work options..."
+                placeholder="• Health insurance...&#10;• Remote work options..."
                 required
               ></textarea>
+            </div>
+
+            {/* For Internal Use Only (Optional) */}
+            <div className="bg-green-50/50 p-4 rounded-xl border border-green-200/60 space-y-4 shadow-inner mt-8">
+              <div className="flex items-center gap-2 text-green-800 font-bold text-xs uppercase tracking-wider">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-700">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                For Internal Use Only (Optional)
+              </div>
+              <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                These details are strictly private/internal and are used exclusively by the AI matching workflow to target top candidates from competitors.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Real Company Name <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    value={formData.real_company_name}
+                    onChange={(e) => setFormData({...formData, real_company_name: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none bg-white font-medium text-gray-800 text-sm transition-all" 
+                    placeholder="e.g. Travel Bullz" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Competitor Companies (Comma-separated)</label>
+                  <input 
+                    type="text" 
+                    value={formData.competitors}
+                    onChange={(e) => setFormData({...formData, competitors: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none bg-white font-medium text-gray-800 text-sm transition-all" 
+                    placeholder="e.g. MakeMyTrip, Agoda" 
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Alternative Titles (Comma-separated)</label>
+                  <input 
+                    type="text" 
+                    value={formData.alternative_titles}
+                    onChange={(e) => setFormData({...formData, alternative_titles: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 outline-none bg-white font-medium text-gray-800 text-sm transition-all" 
+                    placeholder="e.g. Sales Executive, Travel Specialist" 
+                  />
+                </div>
+              </div>
             </div>
           </form>
         </div>

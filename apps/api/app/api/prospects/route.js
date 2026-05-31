@@ -1,0 +1,283 @@
+import { NextResponse } from 'next/server';
+import { supabase, getEnvironment } from '../../../lib/supabase';
+import { getCorsHeaders } from '../../../lib/cors';
+import { requireAuth, logActivityEvent } from '../../../lib/auth';
+
+export async function OPTIONS(req) {
+  return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
+}
+
+export async function GET(req) {
+  try {
+    const environment = getEnvironment();
+    const { searchParams } = new URL(req.url);
+
+    // Retrieve Filter Parameters
+    const stage = searchParams.get('stage');
+    const jobId = searchParams.get('jobId');
+    const owner = searchParams.get('owner');
+    const search = searchParams.get('search');
+    const hasLinkedin = searchParams.get('hasLinkedin') === 'true';
+    const hasEmail = searchParams.get('hasEmail') === 'true';
+    const hasPhone = searchParams.get('hasPhone') === 'true';
+    const activeParam = searchParams.get('active');
+    
+    // Sort parameters
+    const sortBy = searchParams.get('sortBy') || 'created_at';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    // Build the query joining prospect_matches, prospects, and jobs
+    let query = supabase
+      .from('prospect_matches')
+      .select(`
+        id,
+        stage,
+        ai_score,
+        manual_score,
+        ai_reasoning,
+        human_notes,
+        active_flag,
+        primary_flag,
+        owner,
+        tags,
+        followup_due_at,
+        last_contacted_at,
+        created_at,
+        prospect:prospect_id (
+          id,
+          name,
+          email,
+          phone,
+          city,
+          latest_title,
+          latest_company,
+          functional_field,
+          total_experience,
+          linkedin_url,
+          source
+        ),
+        job:job_id (
+          id,
+          title,
+          company_name
+        )
+      `)
+      .eq('environment', environment);
+
+    // Apply filters
+    if (stage) {
+      const stages = stage.split(',');
+      query = query.in('stage', stages);
+    }
+    if (jobId) {
+      query = query.eq('job_id', jobId);
+    }
+    if (owner) {
+      query = query.eq('owner', owner);
+    }
+    if (activeParam !== null && activeParam !== undefined) {
+      query = query.eq('active_flag', activeParam === 'true');
+    }
+
+    // Perform the fetch
+    const { data: matches, error } = await query;
+
+    if (error) {
+      console.error('Failed to query prospects:', error);
+      return NextResponse.json({ success: false, error: 'Failed to fetch prospects' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    // Post-filtering & Sorting in JS for joined nested objects (resilient and fast for <1000 rows)
+    let filteredMatches = matches || [];
+
+    if (search) {
+      const s = search.toLowerCase();
+      filteredMatches = filteredMatches.filter(m => 
+        m.prospect?.name?.toLowerCase().includes(s) ||
+        m.prospect?.latest_company?.toLowerCase().includes(s) ||
+        m.prospect?.latest_title?.toLowerCase().includes(s) ||
+        m.prospect?.functional_field?.toLowerCase().includes(s)
+      );
+    }
+
+    if (hasLinkedin) {
+      filteredMatches = filteredMatches.filter(m => !!m.prospect?.linkedin_url);
+    }
+    if (hasEmail) {
+      filteredMatches = filteredMatches.filter(m => !!m.prospect?.email);
+    }
+    if (hasPhone) {
+      filteredMatches = filteredMatches.filter(m => !!m.prospect?.phone);
+    }
+
+    // Sorting
+    filteredMatches.sort((a, b) => {
+      let valA, valB;
+      if (sortBy === 'newest' || sortBy === 'created_at') {
+        valA = new Date(a.created_at).getTime();
+        valB = new Date(b.created_at).getTime();
+      } else if (sortBy === 'score' || sortBy === 'ai_score') {
+        valA = a.ai_score || 0;
+        valB = b.ai_score || 0;
+      } else if (sortBy === 'name') {
+        valA = a.prospect?.name || '';
+        valB = b.prospect?.name || '';
+      } else if (sortBy === 'experience') {
+        valA = parseFloat(a.prospect?.total_experience) || 0;
+        valB = parseFloat(b.prospect?.total_experience) || 0;
+      } else {
+        valA = a[sortBy] || '';
+        valB = b[sortBy] || '';
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return NextResponse.json({ success: true, data: filteredMatches }, { headers: getCorsHeaders(req.headers.get('origin')) });
+
+  } catch (err) {
+    console.error('CRM prospects GET failed:', err);
+    return NextResponse.json({ success: false, error: 'Internal server error: ' + err.message }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+  }
+}
+
+export async function POST(req) {
+  try {
+    const environment = getEnvironment();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth();
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
+
+    const body = await req.json();
+    
+    // Core parameters
+    const { 
+      name, email, phone, city, linkedinUrl, latestTitle, latestCompany, totalExperience, 
+      jobId, stage, score, remarks, owner 
+    } = body;
+
+    if (!name || !jobId) {
+      return NextResponse.json({ success: false, error: 'Name and jobId are required parameters' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    // Check if prospect exists already by linkedin URL
+    let prospectId;
+    if (linkedinUrl) {
+      const { data: existing } = await supabase
+        .from('prospects')
+        .select('id')
+        .eq('linkedin_url', linkedinUrl)
+        .eq('environment', environment)
+        .maybeSingle();
+
+      if (existing) {
+        prospectId = existing.id;
+      }
+    }
+
+    // If prospect doesn't exist, create it
+    if (!prospectId) {
+      const dedupeHash = `${name.toLowerCase().replace(/\s/g, '')}-${(latestCompany || '').toLowerCase().replace(/\s/g, '')}`;
+      
+      const { data: prospect, error: pError } = await supabase
+        .from('prospects')
+        .insert([{
+          name,
+          email,
+          phone,
+          city,
+          latest_title: latestTitle || '',
+          latest_company: latestCompany || '',
+          total_experience: totalExperience || '',
+          linkedin_url: linkedinUrl || null,
+          source: 'Manual Sourcing',
+          dedupe_hash: dedupeHash,
+          environment
+        }])
+        .select()
+        .single();
+
+      if (pError || !prospect) {
+        console.error('Failed to manually insert prospect:', pError);
+        return NextResponse.json({ success: false, error: 'Failed to create prospect profile' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+      }
+
+      prospectId = prospect.id;
+    }
+
+    // Check if match already exists
+    const { data: existingMatch } = await supabase
+      .from('prospect_matches')
+      .select('*')
+      .eq('prospect_id', prospectId)
+      .eq('job_id', jobId)
+      .eq('environment', environment)
+      .maybeSingle();
+
+    if (existingMatch) {
+      return NextResponse.json({ success: false, error: 'Prospect is already matched to this job position' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    // Insert into matches
+    const { data: match, error: mError } = await supabase
+      .from('prospect_matches')
+      .insert([{
+        prospect_id: prospectId,
+        job_id: jobId,
+        stage: stage || 'MATCHED',
+        manual_score: score || null,
+        human_notes: remarks || null,
+        owner: owner || null,
+        environment
+      }])
+      .select()
+      .single();
+
+    if (mError) {
+      console.error('Failed to create prospect match:', mError);
+      return NextResponse.json({ success: false, error: 'Failed to map candidate to job position' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    // Insert audit log (legacy)
+    await supabase
+      .from('prospect_activities')
+      .insert([{
+        prospect_id: prospectId,
+        job_id: jobId,
+        changed_by: owner || 'Admin',
+        activity_type: 'created',
+        new_value: stage || 'MATCHED',
+        metadata: {
+          manual_score: score,
+          remarks
+        },
+        environment
+      }]);
+
+    // Log Global Activity Event
+    await logActivityEvent({
+      user: authUser,
+      event_type: 'CANDIDATE_CREATED',
+      entity_type: 'CANDIDATE',
+      entity_id: prospectId,
+      title: `Mapped candidate ${name} to Job ID ${jobId}`,
+      metadata: { job_id: jobId, stage: stage || 'MATCHED' },
+      environment
+    });
+
+    return NextResponse.json({ success: true, data: match }, { headers: getCorsHeaders(req.headers.get('origin')) });
+
+  } catch (err) {
+    console.error('CRM manual POST failed:', err);
+    return NextResponse.json({ success: false, error: 'Internal server error: ' + err.message }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+  }
+}

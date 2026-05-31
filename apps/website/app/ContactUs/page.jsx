@@ -1,3 +1,19 @@
+export const metadata = {
+  title: 'Contact Us | HireForTravel',
+  description: "Talk to us the way that's easiest for you. WhatsApp is fastest, email is always open, and our inquiry form works for both companies and candidates.",
+  openGraph: {
+    title: 'Contact Us | HireForTravel',
+    description: "Talk to us the way that's easiest for you. WhatsApp is fastest, email is always open, and our inquiry form works for both companies and candidates.",
+    images: ['/assets/images/og-cover.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Contact Us | HireForTravel',
+    description: "Talk to us the way that's easiest for you. WhatsApp is fastest, email is always open, and our inquiry form works for both companies and candidates.",
+    images: ['/assets/images/og-cover.png'],
+  }
+};
+
 export default function ContactUsPage() {
   return (
     <main>

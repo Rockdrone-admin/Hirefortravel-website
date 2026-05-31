@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,32 +15,28 @@ export default function Login() {
     setError('');
 
     try {
-      // Hash the entered password using SHA-256
-      const msgUint8 = new TextEncoder().encode(password);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
       
-      const response = await fetch(`${API_URL}/api/admin/login`, {
+      const response = await fetch(`${API_URL}/api/admin/login`, { credentials: 'include', 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          username: username, 
-          password_hash: hashHex 
+          email: email, 
+          password: password 
         })
       });
 
       const result = await response.json();
 
       if (result.success) {
-        // Set a simple cookie
-        document.cookie = "hft_session=true; path=/; max-age=86400"; // 24 hours
-        router.push('/');
+        if (result.must_reset_password) {
+          router.push('/reset-password');
+        } else {
+          router.push('/');
+        }
         router.refresh();
       } else {
-        setError(result.error || 'Invalid username or password');
+        setError(result.error || 'Invalid email or password');
         setLoading(false);
       }
     } catch (err) {
@@ -67,14 +63,14 @@ export default function Login() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input 
-              type="text" 
+              type="email" 
               required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500" 
-              placeholder="Username"
+              placeholder="name@example.com"
             />
           </div>
           <div>
@@ -85,7 +81,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500" 
-              placeholder="••••••••"
+              placeholder="Password"
             />
           </div>
           

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export function middleware(request) {
+export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
   // Define public paths that don't require authentication
@@ -9,14 +9,17 @@ export function middleware(request) {
   // Get the token from the cookies
   const token = request.cookies.get('hft_session')?.value || '';
 
-  // Redirect to login if trying to access a protected path without a token
-  if (!isPublicPath && !token) {
-    return NextResponse.redirect(new URL('/login', request.nextUrl));
+  // Public paths don't need token validation here
+  if (isPublicPath) {
+    if (token) {
+      return NextResponse.redirect(new URL('/', request.nextUrl));
+    }
+    return NextResponse.next();
   }
 
-  // Redirect to dashboard if trying to access login page with a valid token
-  if (isPublicPath && token) {
-    return NextResponse.redirect(new URL('/', request.nextUrl));
+  // If no token on protected path, redirect
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', request.nextUrl));
   }
 
   return NextResponse.next();

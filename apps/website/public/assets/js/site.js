@@ -187,7 +187,8 @@
         },
         { name: "location", label: "Location", type: "text", required: true, placeholder: "e.g., Delhi, Mumbai, Bangalore or Remote" },
         { name: "phoneNumber", label: "Contact Number", type: "tel", required: true },
-        { name: "email", label: "Work Email", type: "email", required: true }
+        { name: "email", label: "Work Email", type: "email", required: true },
+        { name: "remarks", label: "Anything else we should know? (Optional)", type: "text", fullWidth: true, required: false }
       ]
     
     },
@@ -210,14 +211,17 @@
           label: "Upload CV",
           type: "file",
           required: true,
-          accept: ".pdf,.doc,.docx"
+          accept: ".pdf,.doc,.docx",
+          fullWidth: false
         },
+        { name: "remarks", label: "Anything else we should know? (Optional)", type: "text", fullWidth: true, required: false },
         {
           name: "referredByCheckbox",
           label: "Referred By (Optional)",
           type: "checkbox",
           required: false,
-          conditional: true
+          conditional: true,
+          fullWidth: true
         },
         { name: "referrerName", label: "Referrer's Name", type: "text", required: false, conditional: "referredByCheckbox" },
         { name: "referrerContact", label: "Referrer's Contact Number", type: "tel", required: false, conditional: "referredByCheckbox" }
@@ -232,9 +236,11 @@
     const fieldClass = "field";
     
     if (field.type === "checkbox") {
+      const isFullWidth = field.fullWidth || false;
+      const isConditional = typeof field.conditional === "string";
       return `
-        <div class="${fieldClass}">
-          <label for="${field.name}" style="display: flex; align-items: center; gap: 0.5rem;">
+        <div class="${fieldClass} ${isFullWidth ? 'field--full' : ''}" ${isConditional ? `data-conditional="${field.conditional}"` : ""} style="${isConditional ? 'display: none;' : ''}" data-field-name="${field.name}">
+          <label for="${field.name}" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
             <input id="${field.name}" name="${field.name}" type="checkbox" style="width: auto; margin: 0;">
             <span>${field.label}</span>
           </label>
@@ -255,16 +261,27 @@
     }
 
     if (field.type === "file") {
+      const isFullWidth = field.fullWidth !== false;
       return `
-        <div class="${fieldClass} field--full" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
+        <div class="${fieldClass} ${isFullWidth ? 'field--full' : ''}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
           <label for="${field.name}">${field.label}</label>
           <input id="${field.name}" name="${field.name}" type="file" ${field.required ? "required" : ""} ${field.accept ? `accept="${field.accept}"` : ""} style="border-color: inherit;">
           <span class="field__hint">${field.required ? "PDF and Word formats only" : "If your webhook only accepts JSON, the selected file name is logged and the actual CV can be shared on WhatsApp."}</span>
         </div>`;
     }
 
+    if (field.type === "textarea") {
+      return `
+        <div class="${fieldClass} field--full" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
+          <label for="${field.name}">${field.label}</label>
+          <textarea id="${field.name}" name="${field.name}" ${field.required ? "required" : ""} ${field.placeholder ? `placeholder="${field.placeholder}"` : ""} style="border-color: inherit; min-height: 80px;"></textarea>
+        </div>`;
+    }
+
+    const isFullWidth = field.fullWidth || false;
+
     return `
-      <div class="${fieldClass}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
+      <div class="${fieldClass} ${isFullWidth ? 'field--full' : ''}" ${field.conditional ? `data-conditional="${field.conditional}"` : ""} style="${field.conditional ? 'display: none;' : ''}" data-field-name="${field.name}">
         <label for="${field.name}">${field.label}</label>
         <input id="${field.name}" name="${field.name}" type="${field.type}" ${field.required ? "required" : ""} ${field.placeholder ? `placeholder="${field.placeholder}"` : ""} autocomplete="on" style="border-color: inherit;">
       </div>`;
@@ -608,14 +625,12 @@
     event.preventDefault();
     event.stopPropagation(); // Prevent accordion from toggling
     const jobData = JSON.parse(trigger.getAttribute("data-share-job"));
-    const shareUrl = `${window.location.origin}/candidates?job=${jobData.id}#job-${jobData.id}`;
+    const shareUrl = `${window.location.origin}/candidates?job=${jobData.id}`;
     const shareTitle = `${jobData.title} at ${jobData.company} | HireForTravel`;
-    const shareText = `Check out this job opening: ${jobData.title} at ${jobData.company}.`;
 
     if (navigator.share) {
       navigator.share({
         title: shareTitle,
-        text: shareText,
         url: shareUrl
       }).catch(err => console.warn("Share failed", err));
     } else {

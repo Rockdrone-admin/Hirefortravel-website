@@ -2,6 +2,22 @@ import LogoShowcase from '../components/LogoShowcase';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: 'Travel Companies - Hire Faster & Better',
+  description: 'We work closely with travel brands that need relevant, pre-screened talent without wasting time on broad and generic candidate pipelines.',
+  openGraph: {
+    title: 'Travel Companies - Hire Faster & Better',
+    description: 'We work closely with travel brands that need relevant, pre-screened talent without wasting time on broad and generic candidate pipelines.',
+    images: ['/assets/images/og-cover.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Travel Companies - Hire Faster & Better',
+    description: 'We work closely with travel brands that need relevant, pre-screened talent without wasting time on broad and generic candidate pipelines.',
+    images: ['/assets/images/og-cover.png'],
+  }
+};
+
 export default async function CompaniesPage() {
   return (
     <main>

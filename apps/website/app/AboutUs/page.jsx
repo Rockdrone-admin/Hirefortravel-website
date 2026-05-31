@@ -2,6 +2,22 @@ import LogoShowcase from '../components/LogoShowcase';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: 'About Us - HireForTravel | Recruitment Partner for Travel Industry',
+  description: "We've worked across travel sales, operations, partnerships, and hiring - and built HireForTravel to solve hiring the right way.",
+  openGraph: {
+    title: 'About Us - HireForTravel | Recruitment Partner for Travel Industry',
+    description: "We've worked across travel sales, operations, partnerships, and hiring - and built HireForTravel to solve hiring the right way.",
+    images: ['/assets/images/og-cover.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'About Us - HireForTravel | Recruitment Partner for Travel Industry',
+    description: "We've worked across travel sales, operations, partnerships, and hiring - and built HireForTravel to solve hiring the right way.",
+    images: ['/assets/images/og-cover.png'],
+  }
+};
+
 export default async function AboutUsPage() {
   return (
     <main>

@@ -7,8 +7,19 @@ export async function generateMetadata({ searchParams }) {
   const jobId = searchParams?.job;
 
   const defaultMeta = {
-    title: 'Candidates | HireForTravel',
+    title: 'Hiring Now | HireForTravel',
     description: 'Explore travel industry roles across operations, sales, visa, hospitality and more.',
+    openGraph: {
+      title: 'Hiring Now | HireForTravel',
+      description: 'Explore travel industry roles across operations, sales, visa, hospitality and more.',
+      images: ['/assets/images/og-cover.png'],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'Hiring Now | HireForTravel',
+      description: 'Explore travel industry roles across operations, sales, visa, hospitality and more.',
+      images: ['/assets/images/og-cover.png'],
+    }
   };
 
   if (!jobId) return defaultMeta;
@@ -21,12 +32,18 @@ export async function generateMetadata({ searchParams }) {
       const job = data.data.find(j => String(j.id) === String(jobId));
       if (job) {
         const jobTitle = `Hiring For: ${job.title} at ${job.company_name} | Apply Now`;
-        const jobDesc = `Location: ${job.location} | Experience: ${job.experience} | Salary: ${job.salary || 'Competitive'}. Apply Now on HireForTravel.`;
+        const jobDesc = `Location: ${job.location} | Experience Required: ${job.experience} | Salary: ${job.salary || 'Competitive'}. Apply Now on HireForTravel.`;
 
         return {
           title: jobTitle,
           description: jobDesc,
           openGraph: {
+            title: jobTitle,
+            description: jobDesc,
+            images: ['/assets/images/og-cover.png'],
+          },
+          twitter: {
+            card: 'summary_large_image',
             title: jobTitle,
             description: jobDesc,
             images: ['/assets/images/og-cover.png'],
@@ -39,6 +56,142 @@ export async function generateMetadata({ searchParams }) {
   }
 
   return defaultMeta;
+}
+
+// Helper functions for Google Jobs Schema.org JSON-LD compatibility
+function getSchemaDescription(job) {
+  return [
+    job.about_role,
+    job.notes && job.notes.length > 0 ? `Please Note\n${job.notes.map(n => `- ${n}`).join('\n')}` : '',
+    job.responsibilities && job.responsibilities.length > 0 ? `Key Responsibilities:\n${job.responsibilities.map(r => `- ${r}`).join('\n')}` : '',
+    job.requirements && job.requirements.length > 0 ? `Requirements:\n${job.requirements.map(r => `- ${r}`).join('\n')}` : '',
+    job.benefits && job.benefits.length > 0 ? `Benefits:\n${job.benefits.map(b => `- ${b}`).join('\n')}` : ''
+  ].filter(Boolean).join('\n\n');
+}
+
+function getSchemaPostalAddress(location) {
+  const loc = (location || '').trim().toLowerCase();
+  
+  let addressLocality = location || 'Delhi';
+  let addressRegion = 'Delhi';
+  let postalCode = '110001';
+  let streetAddress = 'Not Specified';
+  
+  if (loc.includes('delhi') || loc.includes('ncr')) {
+    addressLocality = 'Delhi';
+    addressRegion = 'Delhi';
+    postalCode = '110001';
+  } else if (loc.includes('mumbai') || loc.includes('bombay')) {
+    addressLocality = 'Mumbai';
+    addressRegion = 'Maharashtra';
+    postalCode = '400001';
+  } else if (loc.includes('bangalore') || loc.includes('bengaluru')) {
+    addressLocality = 'Bengaluru';
+    addressRegion = 'Karnataka';
+    postalCode = '560001';
+  } else if (loc.includes('gurgaon') || loc.includes('gurugram')) {
+    addressLocality = 'Gurugram';
+    addressRegion = 'Haryana';
+    postalCode = '122001';
+  } else if (loc.includes('noida')) {
+    addressLocality = 'Noida';
+    addressRegion = 'Uttar Pradesh';
+    postalCode = '201301';
+  } else if (loc.includes('kolkata') || loc.includes('calcutta')) {
+    addressLocality = 'Kolkata';
+    addressRegion = 'West Bengal';
+    postalCode = '700001';
+  } else if (loc.includes('chennai') || loc.includes('madras')) {
+    addressLocality = 'Chennai';
+    addressRegion = 'Tamil Nadu';
+    postalCode = '600001';
+  } else if (loc.includes('pune')) {
+    addressLocality = 'Pune';
+    addressRegion = 'Maharashtra';
+    postalCode = '411001';
+  } else if (loc.includes('hyderabad')) {
+    addressLocality = 'Hyderabad';
+    addressRegion = 'Telangana';
+    postalCode = '500001';
+  } else if (loc.includes('remote') || loc.includes('work from home')) {
+    addressLocality = 'Remote';
+    addressRegion = 'Remote';
+    postalCode = '000000';
+  } else {
+    addressLocality = location;
+    addressRegion = location;
+    postalCode = 'Not Specified';
+  }
+
+  return {
+    "@type": "PostalAddress",
+    "streetAddress": streetAddress,
+    "addressLocality": addressLocality,
+    "addressRegion": addressRegion,
+    "postalCode": postalCode,
+    "addressCountry": "IN"
+  };
+}
+
+function getSchemaExperienceRequirements(expString) {
+  const str = (expString || '').toLowerCase().trim();
+  let years = 0;
+  
+  if (str.includes('fresher') || str.includes('0 years') || str.includes('no experience')) {
+    years = 0;
+  } else {
+    const match = str.match(/(\d+)/);
+    if (match) {
+      years = parseInt(match[1], 10);
+    }
+  }
+
+  return {
+    "@type": "OccupationalExperienceRequirements",
+    "monthsOfExperienceRequirement": years * 12
+  };
+}
+
+function getSchemaEmploymentType(title) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('intern')) return 'INTERN';
+  if (t.includes('part-time') || t.includes('part time')) return 'PART_TIME';
+  if (t.includes('contract') || t.includes('freelance')) return 'CONTRACTOR';
+  return 'FULL_TIME';
+}
+
+function getSchemaBaseSalary(salaryString) {
+  if (!salaryString) return undefined;
+  
+  const str = salaryString.replace(/,/g, '').toLowerCase();
+  
+  let unitText = 'YEAR';
+  if (str.includes('month') || str.includes('pm') || str.includes('monthly')) {
+    unitText = 'MONTH';
+  }
+  
+  const numbers = str.match(/(\d[\d\.]*)/g);
+  if (!numbers || numbers.length === 0) return undefined;
+  
+  let minVal = parseFloat(numbers[0]);
+  let maxVal = numbers.length > 1 ? parseFloat(numbers[1]) : minVal;
+  
+  const isLPA = str.includes('lpa') || str.includes('lakh') || str.includes('lac');
+  if (isLPA) {
+    if (minVal < 50) minVal = minVal * 100000;
+    if (maxVal < 50) maxVal = maxVal * 100000;
+  }
+  
+  return {
+    "@type": "MonetaryAmount",
+    "currency": "INR",
+    "value": {
+      "@type": "QuantitativeValue",
+      "minValue": minVal,
+      "maxValue": maxVal,
+      "unitText": unitText
+    }
+  };
 }
 
 export default async function CandidatesPage({ searchParams }) {
@@ -63,35 +216,40 @@ export default async function CandidatesPage({ searchParams }) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    "itemListElement": jobs.map((job, index) => ({
-      "@type": "ListItem",
-      "position": index + 1,
-      "item": {
-        "@type": "JobPosting",
-        "title": job.title,
-        "hiringOrganization": {
-          "@type": "Organization",
-          "name": job.company_name
-        },
-        "jobLocation": {
-          "@type": "Place",
-          "address": {
-            "@type": "PostalAddress",
-            "addressLocality": job.location
-          }
-        },
-        "baseSalary": job.salary ? {
-          "@type": "MonetaryAmount",
-          "currency": "INR",
-          "value": {
-            "@type": "QuantitativeValue",
-            "value": job.salary
-          }
-        } : undefined,
-        "experienceRequirements": job.experience,
-        "datePosted": job.created_at
-      }
-    }))
+    "itemListElement": jobs.map((job, index) => {
+      const isRemote = (job.location || '').toLowerCase().includes('remote') || (job.location || '').toLowerCase().includes('work from home');
+      const datePosted = job.created_at ? new Date(job.created_at) : new Date();
+      const validThroughDate = new Date(datePosted);
+      validThroughDate.setDate(validThroughDate.getDate() + 90);
+
+      return {
+        "@type": "ListItem",
+        "position": index + 1,
+        "item": {
+          "@type": "JobPosting",
+          "title": job.title,
+          "description": getSchemaDescription(job),
+          "hiringOrganization": {
+            "@type": "Organization",
+            "name": job.company_name
+          },
+          "jobLocation": {
+            "@type": "Place",
+            "address": getSchemaPostalAddress(job.location)
+          },
+          "jobLocationType": isRemote ? "TELECOMMUTE" : undefined,
+          "applicantLocationRequirements": isRemote ? {
+            "@type": "Country",
+            "name": "IN"
+          } : undefined,
+          "employmentType": getSchemaEmploymentType(job.title),
+          "baseSalary": getSchemaBaseSalary(job.salary),
+          "experienceRequirements": getSchemaExperienceRequirements(job.experience),
+          "datePosted": datePosted.toISOString(),
+          "validThrough": validThroughDate.toISOString()
+        }
+      };
+    })
   };
 
   return (
@@ -138,6 +296,9 @@ export default async function CandidatesPage({ searchParams }) {
                       <span className="role-meta">Location: {job.location}</span>
                       <span className="role-meta">Experience: {job.experience}</span>
                       {job.salary && <span className="role-meta">Salary: {job.salary}</span>}
+                      {job.number_of_openings !== undefined && job.number_of_openings !== null && (
+                        <span className="role-meta">Openings: {job.number_of_openings}</span>
+                      )}
                     </div>
                     <span className="role-summary-actions">
                       <button
@@ -156,6 +317,17 @@ export default async function CandidatesPage({ searchParams }) {
                       <div className="role-section">
                         <h4>About The Role</h4>
                         <p className="role-text" style={{ whiteSpace: 'pre-line' }}>{job.about_role}</p>
+                      </div>
+                    )}
+
+                    {job.notes && job.notes.length > 0 && (
+                      <div className="role-section">
+                        <h4>Please Note</h4>
+                        <ul className="role-bullets">
+                          {job.notes.map((note, i) => (
+                            <li key={i}>{note}</li>
+                          ))}
+                        </ul>
                       </div>
                     )}
 

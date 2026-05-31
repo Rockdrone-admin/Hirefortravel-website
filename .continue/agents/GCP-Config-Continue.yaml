@@ -13,9 +13,9 @@ models:
       projectId: amiable-anagram-495103-c4
       region: global
 
-  - name: Gemini 3 Flash Preview
+  - name: Gemini 3.5 Flash
     provider: vertexai
-    model: gemini-3-flash-preview
+    model: gemini-3.5-flash
     env:
       projectId: amiable-anagram-495103-c4
       region: global

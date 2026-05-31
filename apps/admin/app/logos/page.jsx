@@ -17,12 +17,12 @@ export default function LogosManager() {
   const fetchLogos = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/logos?all=true`);
+      const response = await fetch(`${API_URL}/api/logos?all=true`, { credentials: 'include' });
       const result = await response.json();
       if (result.success) {
         setLogos(result.data);
       } else {
-        logCritical('Admin: API returned success:false when fetching logos', { result });
+        logCritical('Admin: API returned success:false when fetching logos', { credentials: 'include',  result });
       }
     } catch (err) {
       logCritical('Admin: Failed to fetch logos (API might be down)', { error: err.message });
@@ -35,7 +35,7 @@ export default function LogosManager() {
   const handleSaveLogo = async (logoData) => {
     try {
       // For now, we use a simple POST. In future, we might use FormData for files.
-      const response = await fetch(`${API_URL}/api/logos`, {
+      const response = await fetch(`${API_URL}/api/logos`, { credentials: 'include', 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(logoData),
@@ -56,7 +56,7 @@ export default function LogosManager() {
 
   const handleToggleVisibility = async (id, currentStatus) => {
     try {
-      const response = await fetch(`${API_URL}/api/logos`, {
+      const response = await fetch(`${API_URL}/api/logos`, { credentials: 'include', 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, is_visible: !currentStatus }),
@@ -77,7 +77,7 @@ export default function LogosManager() {
     if (!confirm("Are you sure you want to delete this logo?")) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/logos?id=${id}`, {
+      const response = await fetch(`${API_URL}/api/logos?id=${id}`, { credentials: 'include', 
         method: 'DELETE',
       });
       const result = await response.json();

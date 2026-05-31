@@ -49,3 +49,10 @@ apps/website/scratch/
 
 .vercel
 .env*.local
+
+# Local Appscript / References
+Appscript Code/
+Bright Data Linkedin Scraper Reference.md
+\#\ Apify\ Linkedin\ Scraper\ Reference.md
+Supabase Auth Reference.md
+forensics/

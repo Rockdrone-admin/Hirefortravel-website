@@ -65,6 +65,7 @@ export function getCorsHeaders(origin) {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, Cache-Control',
+    'Access-Control-Allow-Credentials': 'true',
     'X-Robots-Tag': 'noindex, nofollow',
   };
 }

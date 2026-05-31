@@ -9,12 +9,18 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google/genai": "latest",
+    "@repo/logger": "*",
+    "@supabase/supabase-js": "^2.43.0",
+    "@upstash/qstash": "latest",
+    "@vercel/oidc": "^3.4.1",
+    "apify-client": "^2.23.3",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "google-auth-library": "^10.6.2",
     "next": "latest",
     "react": "^18",
     "react-dom": "^18",
-    "@supabase/supabase-js": "^2.43.0",
-    "cors": "^2.8.5",
-    "zod": "^3.23.8",
-    "@repo/logger": "*"
+    "zod": "^3.23.8"
   }
 }

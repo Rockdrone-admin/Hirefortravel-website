@@ -2,9 +2,25 @@ import './globals.css';
 import Script from 'next/script';
 
 export const metadata = {
-  title: 'HireForTravel | Travel Recruitment Agency',
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : 'https://hirefortravel.com'
+  ),
+  title: 'HireForTravel | Recruitment Partner for Travel Industry',
   description: 'HireForTravel helps travel brands hire faster.',
   openGraph: {
+    title: 'HireForTravel | Recruitment Partner for Travel Industry',
+    description: 'HireForTravel helps travel brands hire faster.',
+    images: ['/assets/images/og-cover.png'],
+    siteName: 'HireForTravel',
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'HireForTravel | Recruitment Partner for Travel Industry',
+    description: 'HireForTravel helps travel brands hire faster.',
     images: ['/assets/images/og-cover.png'],
   }
 };

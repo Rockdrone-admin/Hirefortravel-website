@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../lib/supabase';
 import { getCorsHeaders } from '../../../lib/cors';
 import { logCritical } from '@repo/logger';
+import { requireAuth, logActivityEvent } from '../../../lib/auth';
 
 // Dynamic CORS handled inside functions
 
@@ -13,10 +14,10 @@ export async function GET(req) {
   try {
     const environment = getEnvironment();
     
-    // Extract status from URL query parameters, default to 'active'
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status') || 'active';
     const statusList = statusParam.split(',');
+    const isAdmin = searchParams.get('admin') === 'true';
     
     if (!supabase) {
       logCritical('Supabase client not initialized in API route');
@@ -35,7 +36,13 @@ export async function GET(req) {
       return NextResponse.json({ success: false, error: 'Failed to fetch jobs' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
-    return NextResponse.json({ success: true, data: jobs }, { headers: getCorsHeaders(req.headers.get('origin')) });
+    // Server-side strip the internal company, competitor, and alternative titles details for public web-app queries to prevent crawler / Google Jobs indexing leak
+    const returnedJobs = isAdmin ? jobs : (jobs || []).map(job => {
+      const { real_company_name, competitors, alternative_titles, ...rest } = job;
+      return rest;
+    });
+
+    return NextResponse.json({ success: true, data: returnedJobs }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
     console.error('Internal error:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
@@ -45,6 +52,9 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const environment = getEnvironment();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth(); // any logged in user
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
+
     const body = await req.json();
     
     const jobData = {
@@ -67,6 +77,19 @@ export async function POST(req) {
       return NextResponse.json({ success: false, error: 'Failed to create job' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
+    // Log Activity
+    if (data && data[0]) {
+      await logActivityEvent({
+        user: authUser,
+        event_type: 'JOB_CREATED',
+        entity_type: 'JOB',
+        entity_id: data[0].id,
+        title: `Created job position: ${data[0].title}`,
+        metadata: { company: data[0].company_name },
+        environment
+      });
+    }
+
     return NextResponse.json({ success: true, data }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
     console.error('Internal error:', err);
@@ -77,6 +100,9 @@ export async function POST(req) {
 export async function PATCH(req) {
   try {
     const environment = getEnvironment();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth();
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
+
     const { id, ...updates } = await req.json();
 
     if (!id) {
@@ -107,6 +133,20 @@ export async function PATCH(req) {
       return NextResponse.json({ success: false, error: 'Job not found' }, { status: 404, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
+    // Log Activity
+    if (data && data[0]) {
+      const keysUpdated = Object.keys(updates);
+      await logActivityEvent({
+        user: authUser,
+        event_type: 'JOB_UPDATED',
+        entity_type: 'JOB',
+        entity_id: data[0].id,
+        title: `Updated job position: ${data[0].title}`,
+        metadata: { updates: keysUpdated },
+        environment
+      });
+    }
+
     return NextResponse.json({ success: true, data }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
     console.error('Internal error:', err);
@@ -117,6 +157,9 @@ export async function PATCH(req) {
 export async function DELETE(req) {
   try {
     const environment = getEnvironment();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_delete_jobs');
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 
@@ -132,6 +175,14 @@ export async function DELETE(req) {
       return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
+    // Fetch the job details first so we can log its name
+    const { data: jobToDel } = await supabase
+      .from('jobs')
+      .select('title, company_name')
+      .eq('id', numericId)
+      .eq('environment', environment)
+      .single();
+
     const { error } = await supabase
       .from('jobs')
       .delete()
@@ -142,6 +193,17 @@ export async function DELETE(req) {
       logCritical('Failed to delete job from Supabase', { error, id });
       return NextResponse.json({ success: false, error: 'Failed to delete job' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
+
+    // Log Activity
+    await logActivityEvent({
+      user: authUser,
+      event_type: 'JOB_DELETED',
+      entity_type: 'JOB',
+      entity_id: numericId,
+      title: `Deleted job position: ${jobToDel?.title || `ID ${numericId}`}`,
+      metadata: { company: jobToDel?.company_name },
+      environment
+    });
 
     return NextResponse.json({ success: true }, { headers: getCorsHeaders(req.headers.get('origin')) });
   } catch (err) {
