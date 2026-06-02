@@ -40,7 +40,7 @@ export async function GET(req, { params }) {
       const lastUpdate = new Date(run.updated_at || run.created_at);
       const idleSeconds = (now - lastUpdate) / 1000;
 
-      if (idleSeconds > 60) {
+      if (idleSeconds > 120) {
         console.log(`[Sourcing] Run ${runId} has been idle for ${idleSeconds}s. Auto-completing to prevent infinite loading...`);
         const { data: completedRun, error: updateErr } = await supabase
           .from('sourcing_runs')
@@ -104,11 +104,11 @@ export async function GET(req, { params }) {
       }
     }
 
-    let current_phase = 'Analyzing job requirements and mapping search parameters...';
+    let current_phase = 'Understanding the role and preparing the search...';
     let progress_percent = 10;
 
     if (finalRun.status === 'completed') {
-      current_phase = 'Sourcing completed successfully!';
+      current_phase = 'All done! Your candidates are ready.';
       progress_percent = 100;
     } else if (finalRun.status === 'failed') {
       current_phase = 'Sourcing process failed.';

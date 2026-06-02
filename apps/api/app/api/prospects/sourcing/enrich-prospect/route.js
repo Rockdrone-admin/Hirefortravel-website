@@ -28,8 +28,17 @@ export async function POST(req) {
     // Set operational phase & progress: Phase 3 (Analyzing Profiles)
     global.sourcingRunPhases = global.sourcingRunPhases || {};
     global.sourcingRunProgress = global.sourcingRunProgress || {};
-    global.sourcingRunPhases[runId] = "Evaluating candidate backgrounds using Gemini AI fit analysis...";
+    global.sourcingRunPhases[runId] = "Evaluating candidates for the best fit...";
     global.sourcingRunProgress[runId] = 75;
+
+    // Update updated_at in DB to register activity and reset idle timer before starting slow scraper/AI calls
+    if (supabase) {
+      await supabase
+        .from('sourcing_runs')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', runId)
+        .eq('environment', environment);
+    }
 
     // Fetch Job details for matching
     const { data: job, error: jobError } = await supabase

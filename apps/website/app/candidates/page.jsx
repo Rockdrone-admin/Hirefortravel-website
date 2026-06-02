@@ -148,7 +148,7 @@ function getSchemaExperienceRequirements(expString) {
 
   return {
     "@type": "OccupationalExperienceRequirements",
-    "monthsOfExperienceRequirement": years * 12
+    "monthsOfExperience": years * 12
   };
 }
 
@@ -233,7 +233,7 @@ export default async function CandidatesPage({ searchParams }) {
             "@type": "Organization",
             "name": job.company_name
           },
-          "jobLocation": {
+          "jobLocation": isRemote ? undefined : {
             "@type": "Place",
             "address": getSchemaPostalAddress(job.location)
           },
@@ -245,6 +245,7 @@ export default async function CandidatesPage({ searchParams }) {
           "employmentType": getSchemaEmploymentType(job.title),
           "baseSalary": getSchemaBaseSalary(job.salary),
           "experienceRequirements": getSchemaExperienceRequirements(job.experience),
+          "totalJobOpenings": job.number_of_openings !== undefined && job.number_of_openings !== null ? Number(job.number_of_openings) : 1,
           "datePosted": datePosted.toISOString(),
           "validThrough": validThroughDate.toISOString()
         }

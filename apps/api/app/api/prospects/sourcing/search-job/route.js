@@ -33,6 +33,15 @@ export async function POST(req) {
     global.sourcingRunPhases[runId] = "Scanning the talent market for matching professional profiles...";
     global.sourcingRunProgress[runId] = 40;
 
+    // Update updated_at in DB to register activity and reset idle timer before starting discovery operations
+    if (supabase) {
+      await supabase
+        .from('sourcing_runs')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', runId)
+        .eq('environment', environment);
+    }
+
     // Check if Bright Data Key is configured
     const brightDataKey = process.env.BRIGHTDATA_API_KEY;
     if (!brightDataKey) {

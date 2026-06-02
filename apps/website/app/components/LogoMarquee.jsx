@@ -47,6 +47,23 @@ export default function LogoMarquee({ logos }) {
     };
   }, [isPaused, isDragging, logos.length]);
 
+  // Sync scrollRef with actual scroll position when user manually scrolls (touch/wheel/drag)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (isPaused || isDragging) {
+        scrollRef.current = container.scrollLeft;
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [isPaused, isDragging]);
+
   // Handle manual drag-to-scroll
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -83,6 +100,7 @@ export default function LogoMarquee({ logos }) {
         onMouseUp={handleMouseUpOrLeave}
         onTouchStart={() => setIsPaused(true)}
         onTouchEnd={() => setIsPaused(false)}
+        onTouchCancel={() => setIsPaused(false)}
         aria-label="Client logos"
       >
         <div className="marquee-track">

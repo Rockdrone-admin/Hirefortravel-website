@@ -12,7 +12,8 @@ VALUES
   ('SUPER_ADMIN', 'production', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": true}'::jsonb),
   ('ADMIN', 'production', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": true}'::jsonb),
   ('RECRUITER', 'production', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": false}'::jsonb)
-ON CONFLICT (role, environment) DO UPDATE SET permissions = EXCLUDED.permissions;
+ON CONFLICT (role, environment) 
+DO UPDATE SET permissions = EXCLUDED.permissions || role_permissions.permissions;
 
 -- Give the legacy public uuid field a stable generated value and enforce uniqueness.
 ALTER TABLE prospects ALTER COLUMN uuid SET DEFAULT uuid_generate_v4();

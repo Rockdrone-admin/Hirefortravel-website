@@ -89,24 +89,22 @@ export default function AISourcingPage() {
   const [laymanMessage, setLaymanMessage] = useState("");
 
   const getLaymanMessage = (progress, totalDiscovered) => {
-    if (progress >= 100) return "Sourcing completed successfully!";
+    if (progress >= 100) return "All done! Your candidates are ready.";
     if (progress >= 90) {
-      return totalDiscovered > 0 
-        ? `Compiling ${totalDiscovered} CRM profiles and preparing shortlists...`
-        : "Compiling candidate profiles and preparing shortlist...";
+      return "Finishing up...";
     }
     if (progress >= 70) {
       return totalDiscovered > 0
-        ? `Evaluating ${totalDiscovered} candidates using Gemini AI fit analysis...`
-        : "Evaluating candidate experience and suitability using AI...";
+        ? `Evaluating ${totalDiscovered} candidates for the best fit...`
+        : "Evaluating candidates for the best fit...";
     }
     if (progress >= 45) {
       return totalDiscovered > 0
-        ? `Found ${totalDiscovered} matching profiles. Extracting verified backgrounds...`
-        : "Retrieving verified professional backgrounds and credentials...";
+        ? `Found ${totalDiscovered} promising profiles. Looking deeper into their backgrounds...`
+        : "Looking deeper into candidate backgrounds...";
     }
-    if (progress >= 20) return "Scanning the talent market for matching professional profiles...";
-    return "Analyzing job requirements and mapping search parameters...";
+    if (progress >= 20) return "Scanning the talent market for matching profiles...";
+    return "Understanding the role and preparing the search...";
   };
 
   useEffect(() => {

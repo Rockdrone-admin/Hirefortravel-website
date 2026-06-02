@@ -77,7 +77,7 @@ export async function POST(req) {
     global.sourcingRunPhases = global.sourcingRunPhases || {};
     global.sourcingRunProgress = global.sourcingRunProgress || {};
 
-    global.sourcingRunPhases[run.id] = "Analyzing job requirements and mapping search parameters...";
+    global.sourcingRunPhases[run.id] = "Understanding the role and preparing the search...";
     global.sourcingRunProgress[run.id] = 10;
 
     const qstashToken = process.env.QSTASH_TOKEN;
@@ -232,7 +232,7 @@ export async function POST(req) {
 
         // Once we arrive here, all background search and enrichment triggers have fully finished.
         // For local mode, this means everything is completely done. Let's mark it as completed!
-        global.sourcingRunPhases[run.id] = "Compiling CRM profiles and preparing shortlists...";
+        global.sourcingRunPhases[run.id] = "Finishing up...";
         global.sourcingRunProgress[run.id] = 95;
         
         if (local || !qstash) {
@@ -291,7 +291,7 @@ export async function POST(req) {
           console.log(`[Sourcing Saga: Init] [LocalDev] ✅ Sourcing run ${run.id} finished successfully.`);
         }
 
-        global.sourcingRunPhases[run.id] = "Sourcing completed successfully!";
+        global.sourcingRunPhases[run.id] = "All done! Your candidates are ready.";
         global.sourcingRunProgress[run.id] = 100;
 
       } catch (backgroundError) {
