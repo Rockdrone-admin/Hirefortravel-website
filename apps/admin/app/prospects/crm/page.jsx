@@ -458,12 +458,12 @@ export default function ProspectsCRMBoard() {
         {/* Active Journey */}
         <div>
           <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">Active Pipeline Journey</h4>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center overflow-x-auto scrollbar-none pb-2 gap-1">
             {ACTIVE_STAGES.map((stage, idx) => {
               const isActive = activeStageTab === stage.id;
               const count = stageCounts[stage.id];
               return (
-                <div key={stage.id} className="flex items-center">
+                <div key={stage.id} className="flex items-center flex-shrink-0">
                   <button
                     onClick={() => { setActiveStageTab(stage.id); setSelectedProspects([]); }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border-2 ${
@@ -490,7 +490,7 @@ export default function ProspectsCRMBoard() {
         {/* Terminal Outcomes */}
         <div className="pt-3 border-t border-gray-100">
           <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">Closed / Terminal Outcomes</h4>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center overflow-x-auto scrollbar-none pb-2 gap-2">
             {TERMINAL_STAGES.map(stage => {
               const isActive = activeStageTab === stage.id;
               const count = stageCounts[stage.id];
@@ -498,7 +498,7 @@ export default function ProspectsCRMBoard() {
                 <button
                   key={stage.id}
                   onClick={() => { setActiveStageTab(stage.id); setSelectedProspects([]); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border-2 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border-2 flex-shrink-0 ${
                     isActive 
                       ? `border-${stage.color}-500 bg-${stage.color}-50 text-${stage.color}-800 shadow-sm` 
                       : `border-transparent bg-gray-50 text-gray-600 hover:bg-gray-100 hover:border-gray-200`
@@ -598,258 +598,518 @@ export default function ProspectsCRMBoard() {
             No candidates found in {activeStageDetails.name}.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-[10px] uppercase tracking-wider text-gray-500 font-black">
-                  <th className="px-4 py-3 w-10">
-                    <input type="checkbox" onChange={(e) => setSelectedProspects(e.target.checked ? displayProspects.map(p => p.id) : [])} checked={displayProspects.length > 0 && selectedProspects.length === displayProspects.length} className="rounded text-green-700 border-gray-300" />
-                  </th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('name')}>Candidate {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('company')}>Experience {sortConfig.key === 'company' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-gray-100 text-center" onClick={() => handleSort('score')}>Score {sortConfig.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('identified')}>Time Sourced {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3">Contact</th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('duration')}>In Stage {sortConfig.key === 'duration' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3 w-[280px] min-w-[280px]">Latest Remarks</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
-                {displayProspects.map(matchItem => {
-                  const prospect = matchItem.prospect || {};
-                  const job = matchItem.job || {};
-                  const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
-                  const isSelected = selectedProspects.includes(matchItem.id);
-                  
-                  // Logic to find next/prev active stage
-                  const currentIdx = ACTIVE_STAGES.findIndex(s => s.id === matchItem.stage);
-                  const isTerminal = currentIdx === -1;
-                  
-                  return (
-                    <tr key={matchItem.id} className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-green-50/50' : ''}`}>
-                      <td className="px-4 py-3">
-                        <input type="checkbox" checked={isSelected} onChange={() => handleCardSelectionToggle(matchItem.id)} className="rounded text-green-700 border-gray-300" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-gray-800 hover:text-green-800 cursor-pointer text-xs" onClick={() => setActiveMatchId(matchItem.id)}>
-                          {prospect.name}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          {matchItem.owner && (
-                            <span className="text-[9px] text-gray-400 font-semibold">
-                              Recruiter: <span className="text-gray-500">{matchItem.owner}</span>
+          <div>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-[10px] uppercase tracking-wider text-gray-500 font-black">
+                    <th className="px-4 py-3 w-10">
+                      <input type="checkbox" onChange={(e) => setSelectedProspects(e.target.checked ? displayProspects.map(p => p.id) : [])} checked={displayProspects.length > 0 && selectedProspects.length === displayProspects.length} className="rounded text-green-700 border-gray-300" />
+                    </th>
+                    <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('name')}>Candidate {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                    <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('company')}>Experience {sortConfig.key === 'company' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                    <th className="px-4 py-3 cursor-pointer hover:bg-gray-100 text-center" onClick={() => handleSort('score')}>Score {sortConfig.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                    <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('identified')}>Time Sourced {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                    <th className="px-4 py-3">Contact</th>
+                    <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('duration')}>In Stage {sortConfig.key === 'duration' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                    <th className="px-4 py-3 w-[280px] min-w-[280px]">Latest Remarks</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs">
+                  {displayProspects.map(matchItem => {
+                    const prospect = matchItem.prospect || {};
+                    const job = matchItem.job || {};
+                    const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
+                    const isSelected = selectedProspects.includes(matchItem.id);
+                    
+                    // Logic to find next/prev active stage
+                    const currentIdx = ACTIVE_STAGES.findIndex(s => s.id === matchItem.stage);
+                    const isTerminal = currentIdx === -1;
+                    
+                    return (
+                      <tr key={matchItem.id} className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-green-50/50' : ''}`}>
+                        <td className="px-4 py-3">
+                          <input type="checkbox" checked={isSelected} onChange={() => handleCardSelectionToggle(matchItem.id)} className="rounded text-green-700 border-gray-300" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-gray-800 hover:text-green-800 cursor-pointer text-xs" onClick={() => setActiveMatchId(matchItem.id)}>
+                            {prospect.name}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            {matchItem.owner && (
+                              <span className="text-[9px] text-gray-400 font-semibold">
+                                Recruiter: <span className="text-gray-500">{matchItem.owner}</span>
+                              </span>
+                            )}
+                            <span className="inline-block bg-gray-50 border border-gray-200 px-1 py-0.2 rounded text-[8px] font-black text-gray-500 uppercase tracking-wider truncate max-w-[110px]" title={`Matched for Job: ${job.title}`}>
+                              {job.title || 'Unknown Position'}
                             </span>
-                          )}
-                          <span className="inline-block bg-gray-50 border border-gray-200 px-1 py-0.2 rounded text-[8px] font-black text-gray-500 uppercase tracking-wider truncate max-w-[110px]" title={`Matched for Job: ${job.title}`}>
-                            {job.title || 'Unknown Position'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 max-w-[160px]">
+                          <div className="font-semibold text-gray-700 truncate text-xs" title={prospect.latest_title}>{prospect.latest_title || 'No Title'}</div>
+                          <div className="text-[10px] text-gray-400 truncate mt-0.5" title={`${prospect.latest_company || 'No Company'} • ${prospect.city || 'No Location'}`}>
+                            {prospect.latest_company || 'No Company'}{prospect.city ? ` • ${prospect.city}` : ''}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black shadow-sm ${
+                            finalScore >= 90 ? 'bg-green-100 text-green-800' :
+                            finalScore >= 80 ? 'bg-blue-100 text-blue-800' :
+                            finalScore >= 70 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {finalScore}%
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[160px]">
-                        <div className="font-semibold text-gray-700 truncate text-xs" title={prospect.latest_title}>{prospect.latest_title || 'No Title'}</div>
-                        <div className="text-[10px] text-gray-400 truncate mt-0.5" title={`${prospect.latest_company || 'No Company'} • ${prospect.city || 'No Location'}`}>
-                          {prospect.latest_company || 'No Company'}{prospect.city ? ` • ${prospect.city}` : ''}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black shadow-sm ${
-                          finalScore >= 90 ? 'bg-green-100 text-green-800' :
-                          finalScore >= 80 ? 'bg-blue-100 text-blue-800' :
-                          finalScore >= 70 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {finalScore}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {renderTimeIdentified(matchItem.created_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          {prospect.linkedin_url ? (
-                            <a 
-                              href={prospect.linkedin_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-xs"
-                              title="View LinkedIn Profile"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-                            </a>
-                          ) : (
-                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No LinkedIn URL">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-                            </div>
-                          )}
-
-                          {prospect.email ? (
-                            <a 
-                              href={`mailto:${prospect.email}`}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
-                              title={`Email: ${prospect.email}`}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                            </a>
-                          ) : (
-                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No Email available">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                            </div>
-                          )}
-
-                          {prospect.phone ? (
-                            <a 
-                              href={`tel:${prospect.phone}`}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
-                              title={`Phone: ${prospect.phone}`}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                            </a>
-                          ) : (
-                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No Phone available">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-[11px] font-semibold">
-                        {getStageDurationString(matchItem)}
-                      </td>
-                      <td className="px-4 py-3 w-[280px] min-w-[280px] max-w-[280px]">
-                        {editingNotesMatchId === matchItem.id ? (
-                          <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
-                            <textarea 
-                              value={tempNotes} 
-                              onChange={(e) => setTempNotes(e.target.value)}
-                              className="w-full text-[11px] p-1.5 border border-gray-300 rounded focus:ring-green-700 focus:border-green-700 bg-white font-semibold text-gray-700"
-                              rows="2"
-                              placeholder="Enter remarks..."
-                              autoFocus
-                            />
-                            <div className="flex justify-end gap-1.5">
-                              <button 
-                                onClick={() => setEditingNotesMatchId(null)}
-                                className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold text-[9px] hover:bg-gray-200 transition-colors"
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {renderTimeIdentified(matchItem.created_at)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            {prospect.linkedin_url ? (
+                              <a 
+                                href={prospect.linkedin_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-xs"
+                                title="View LinkedIn Profile"
                               >
-                                Cancel
-                              </button>
-                              <button 
-                                onClick={async () => { 
-                                  await handleUpdateNotes(matchItem.id, tempNotes); 
-                                  setEditingNotesMatchId(null); 
-                                }}
-                                className="px-1.5 py-0.5 bg-green-700 text-white rounded font-bold text-[9px] hover:bg-green-800 transition-colors shadow-sm"
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                              </a>
+                            ) : (
+                              <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No LinkedIn URL">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                              </div>
+                            )}
+
+                            {prospect.email ? (
+                              <a 
+                                href={`mailto:${prospect.email}`}
+                                className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
+                                title={`Email: ${prospect.email}`}
                               >
-                                Save
-                              </button>
-                            </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                              </a>
+                            ) : (
+                              <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No Email available">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                              </div>
+                            )}
+
+                            {prospect.phone ? (
+                              <a 
+                                href={`tel:${prospect.phone}`}
+                                className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
+                                title={`Phone: ${prospect.phone}`}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                              </a>
+                            ) : (
+                              <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No Phone available">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                              </div>
+                            )}
                           </div>
-                        ) : matchItem.human_notes ? (
-                          <div className="bg-gray-50 border border-gray-200 rounded px-2.5 py-2 text-gray-700 w-full group/notes relative shadow-sm">
-                            <button 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                setEditingNotesMatchId(matchItem.id); 
-                                setTempNotes(''); 
-                              }}
-                              className="absolute right-2 top-2 text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse z-10"
-                              title="Add Remark"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                            </button>
-                            <p className="text-[11px] font-semibold leading-relaxed text-gray-800 whitespace-pre-wrap pr-6">
-                              {matchItem.human_notes}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="bg-green-50/40 border border-green-100/60 rounded px-2 py-1.5 text-green-700 w-full group/notes relative">
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-green-800">Auto Outreach Draft</span>
-                              <div className="flex items-center gap-1">
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-[11px] font-semibold">
+                          {getStageDurationString(matchItem)}
+                        </td>
+                        <td className="px-4 py-3 w-[280px] min-w-[280px] max-w-[280px]">
+                          {editingNotesMatchId === matchItem.id ? (
+                            <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
+                              <textarea 
+                                value={tempNotes} 
+                                onChange={(e) => setTempNotes(e.target.value)}
+                                className="w-full text-[11px] p-1.5 border border-gray-300 rounded focus:ring-green-700 focus:border-green-700 bg-white font-semibold text-gray-700"
+                                rows="2"
+                                placeholder="Enter remarks..."
+                                autoFocus
+                              />
+                              <div className="flex justify-end gap-1.5">
                                 <button 
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setEditingNotesMatchId(matchItem.id); 
-                                    setTempNotes(''); 
-                                  }}
-                                  className="text-green-800 hover:text-green-950 p-0.5 rounded hover:bg-green-200 transition-colors animate-pulse"
-                                  title="Add Custom Remark"
+                                  onClick={() => setEditingNotesMatchId(null)}
+                                  className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold text-[9px] hover:bg-gray-200 transition-colors"
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                  Cancel
                                 </button>
                                 <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(getOutreachDraft(prospect, job));
-                                    alert('Outreach draft copied to clipboard!');
+                                  onClick={async () => { 
+                                    await handleUpdateNotes(matchItem.id, tempNotes); 
+                                    setEditingNotesMatchId(null); 
                                   }}
-                                  className="text-green-800 hover:text-green-950 p-0.5 rounded hover:bg-green-200 transition-colors"
-                                  title="Copy Outreach Draft"
+                                  className="px-1.5 py-0.5 bg-green-700 text-white rounded font-bold text-[9px] hover:bg-green-800 transition-colors shadow-sm"
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                  Save
                                 </button>
                               </div>
                             </div>
-                            <p 
-                              className="text-[10px] italic leading-normal pr-4" 
-                              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                              title={getOutreachDraft(prospect, job)}
-                            >
-                              {getOutreachDraft(prospect, job)}
-                            </p>
+                          ) : matchItem.human_notes ? (
+                            <div className="bg-gray-50 border border-gray-200 rounded px-2.5 py-2 text-gray-700 w-full group/notes relative shadow-sm" onClick={(e) => e.stopPropagation()}>
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setEditingNotesMatchId(matchItem.id); 
+                                  setTempNotes(''); 
+                                }}
+                                className="absolute right-2 top-2 text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse z-10"
+                                title="Add Remark"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                              </button>
+                              <p className="text-[11px] font-semibold leading-relaxed text-gray-800 whitespace-pre-wrap pr-6">
+                                {matchItem.human_notes}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-green-50/40 border border-green-100/60 rounded px-2 py-1.5 text-green-700 w-full group/notes relative" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-green-800">Auto Outreach Draft</span>
+                                <div className="flex items-center gap-1">
+                                  <button 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      setEditingNotesMatchId(matchItem.id); 
+                                      setTempNotes(''); 
+                                    }}
+                                    className="text-green-800 hover:text-green-950 p-0.5 rounded hover:bg-green-200 transition-colors animate-pulse"
+                                    title="Add Custom Remark"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                  </button>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(getOutreachDraft(prospect, job));
+                                      alert('Outreach draft copied to clipboard!');
+                                    }}
+                                    className="text-green-800 hover:text-green-950 p-0.5 rounded hover:bg-green-200 transition-colors"
+                                    title="Copy Outreach Draft"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                  </button>
+                                </div>
+                              </div>
+                              <p 
+                                className="text-[10px] italic leading-normal pr-4" 
+                                style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                title={getOutreachDraft(prospect, job)}
+                              >
+                                {getOutreachDraft(prospect, job)}
+                              </p>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Quick Actions for Active Stages */}
+                            {!isTerminal && currentIdx > 0 && (
+                              <button onClick={() => triggerStageTransition(matchItem.id, ACTIVE_STAGES[currentIdx - 1].id, prospect.name, matchItem.stage)} className="p-1.5 border border-gray-200 bg-white text-gray-500 rounded hover:bg-gray-100 hover:text-gray-800 transition-colors shadow-sm" title="Regress Stage">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                              </button>
+                            )}
+                            {!isTerminal && currentIdx < ACTIVE_STAGES.length - 1 && (
+                              <div className="relative group inline-block">
+                                <button className="p-1.5 border border-green-600 bg-green-50 text-green-700 rounded hover:bg-green-600 hover:text-white transition-colors shadow-sm flex items-center justify-center" title="Advance / Skip Stages">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                                </button>
+                                <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 shadow-xl rounded-md z-50 hidden group-hover:block group-focus-within:block text-left text-[11px] font-bold overflow-hidden">
+                                  {ACTIVE_STAGES.slice(currentIdx + 1).map(s => (
+                                    <button key={s.id} onClick={() => triggerStageTransition(matchItem.id, s.id, prospect.name, matchItem.stage)} className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-green-50 hover:text-green-700 border-b border-gray-50 last:border-0 transition-colors">
+                                      {s.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Dropdown for explicitly rejecting */}
+                            {!isTerminal && (
+                              <div className="relative group inline-block">
+                                <button className="p-1.5 border border-rose-200 bg-white text-rose-500 rounded hover:bg-rose-50 transition-colors shadow-sm" title="Mark as Negative Outcome">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                                <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 shadow-xl rounded-md z-50 hidden group-hover:block group-focus-within:block text-left text-[11px] font-bold overflow-hidden">
+                                  {TERMINAL_STAGES.map(t => (
+                                    <button key={t.id} onClick={() => triggerStageTransition(matchItem.id, t.id, prospect.name, matchItem.stage)} className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-rose-50 hover:text-rose-700 border-b border-gray-50 last:border-0 transition-colors">
+                                      {t.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {isTerminal && (
+                              <button onClick={() => triggerStageTransition(matchItem.id, 'MATCHED', prospect.name, matchItem.stage)} className="px-2 py-1 border border-gray-200 bg-white text-gray-600 rounded hover:bg-gray-100 text-[10px] font-bold shadow-sm transition-colors" title="Re-engage candidate">
+                                Re-activate
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {displayProspects.map(matchItem => {
+                const prospect = matchItem.prospect || {};
+                const job = matchItem.job || {};
+                const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
+                const isSelected = selectedProspects.includes(matchItem.id);
+                const currentIdx = ACTIVE_STAGES.findIndex(s => s.id === matchItem.stage);
+                const isTerminal = currentIdx === -1;
+
+                return (
+                  <div key={matchItem.id} className={`p-4 space-y-3.5 relative ${isSelected ? 'bg-green-50/20' : 'bg-white'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      {/* Checkbox and Name */}
+                      <div className="flex items-start gap-3 min-w-0">
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected} 
+                          onChange={() => handleCardSelectionToggle(matchItem.id)} 
+                          className="mt-1 rounded text-green-700 focus:ring-green-700 border-gray-300 h-4.5 w-4.5 flex-shrink-0" 
+                        />
+                        <div className="min-w-0">
+                          <div 
+                            className="font-bold text-gray-900 hover:text-green-800 cursor-pointer text-sm leading-tight" 
+                            onClick={() => setActiveMatchId(matchItem.id)}
+                          >
+                            {prospect.name}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-gray-500 font-semibold">
+                            {matchItem.owner && (
+                              <span>Owner: {matchItem.owner}</span>
+                            )}
+                            {matchItem.owner && job.title && <span>&bull;</span>}
+                            <span className="truncate max-w-[130px]" title={job.title}>{job.title || 'Unknown Position'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Score Badge */}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black shadow-xs flex-shrink-0 ${
+                        finalScore >= 90 ? 'bg-green-100 text-green-800' :
+                        finalScore >= 80 ? 'bg-blue-100 text-blue-800' :
+                        finalScore >= 70 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {finalScore}%
+                      </span>
+                    </div>
+
+                    {/* Candidate Background Summary */}
+                    <div className="text-xs bg-gray-50/50 border border-gray-100 rounded-lg p-2.5 space-y-1">
+                      <div className="font-semibold text-gray-700 truncate">{prospect.latest_title || 'No Title'}</div>
+                      <div className="text-gray-500 truncate">{prospect.latest_company || 'No Company'}{prospect.city ? ` • ${prospect.city}` : ''}</div>
+                      {getStageDurationString(matchItem) && (
+                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                          Time in Stage: {getStageDurationString(matchItem)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Meta and Contact Row */}
+                    <div className="flex items-center justify-between gap-3 text-xs text-gray-505">
+                      <div className="text-xs text-gray-400 font-medium">
+                        Sourced: {new Date(matchItem.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+
+                      {/* Contact Buttons */}
+                      <div className="flex items-center gap-2">
+                        {prospect.linkedin_url ? (
+                          <a 
+                            href={prospect.linkedin_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-50 border border-blue-200 text-blue-600 active:bg-blue-600 active:text-white transition-colors"
+                            title="View LinkedIn Profile"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                          </a>
+                        ) : (
+                          <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 border border-gray-150 text-gray-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
                           </div>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Quick Actions for Active Stages */}
-                          {!isTerminal && currentIdx > 0 && (
-                            <button onClick={() => triggerStageTransition(matchItem.id, ACTIVE_STAGES[currentIdx - 1].id, prospect.name, matchItem.stage)} className="p-1.5 border border-gray-200 bg-white text-gray-500 rounded hover:bg-gray-100 hover:text-gray-800 transition-colors shadow-sm" title="Regress Stage">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                        {prospect.email ? (
+                          <a 
+                            href={`mailto:${prospect.email}`}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-50 border border-green-200 text-green-700 active:bg-green-700 active:text-white transition-colors"
+                            title={`Email: ${prospect.email}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                          </a>
+                        ) : (
+                          <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 border border-gray-150 text-gray-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                          </div>
+                        )}
+                        {prospect.phone ? (
+                          <a 
+                            href={`tel:${prospect.phone}`}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-amber-50 border border-amber-200 text-amber-700 active:bg-amber-600 active:text-white transition-colors"
+                            title={`Phone: ${prospect.phone}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                          </a>
+                        ) : (
+                          <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 border border-gray-150 text-gray-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Remarks/Notes block */}
+                    <div className="pt-2 border-t border-gray-100">
+                      {editingNotesMatchId === matchItem.id ? (
+                        <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
+                          <textarea 
+                            value={tempNotes} 
+                            onChange={(e) => setTempNotes(e.target.value)}
+                            className="w-full text-xs p-1.5 border border-gray-300 rounded focus:ring-green-700 focus:border-green-700 bg-white font-semibold text-gray-750"
+                            rows="2"
+                            placeholder="Enter remarks..."
+                            autoFocus
+                          />
+                          <div className="flex justify-end gap-1.5">
+                            <button 
+                              onClick={() => setEditingNotesMatchId(null)}
+                              className="px-2 py-0.5 bg-gray-100 text-gray-505 rounded font-bold text-[10px] hover:bg-gray-200 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={async () => { 
+                                await handleUpdateNotes(matchItem.id, tempNotes); 
+                                setEditingNotesMatchId(null); 
+                              }}
+                              className="px-2 py-0.5 bg-green-700 text-white rounded font-bold text-[10px] hover:bg-green-800 transition-colors shadow-xs"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : matchItem.human_notes ? (
+                        <div className="bg-gray-50 border border-gray-200 rounded px-2.5 py-2 text-gray-700 w-full group/notes relative shadow-xs" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setEditingNotesMatchId(matchItem.id); 
+                              setTempNotes(''); 
+                            }}
+                            className="absolute right-2 top-2 text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse z-10"
+                            title="Add Remark"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                          </button>
+                          <p className="text-[11px] font-semibold leading-relaxed text-gray-800 whitespace-pre-wrap pr-6">
+                            {matchItem.human_notes}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-green-50/40 border border-green-100/60 rounded px-2 py-1.5 text-green-700 w-full group/notes relative" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-green-800">Auto Outreach Draft</span>
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setEditingNotesMatchId(matchItem.id); 
+                                  setTempNotes(''); 
+                                }}
+                                className="text-green-800 hover:text-green-950 p-0.5 rounded hover:bg-green-200 transition-colors animate-pulse"
+                                title="Add Custom Remark"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(getOutreachDraft(prospect, job));
+                                  alert('Outreach draft copied to clipboard!');
+                                }}
+                                className="text-green-800 hover:text-green-950 p-0.5 rounded hover:bg-green-200 transition-colors"
+                                title="Copy Outreach Draft"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                          <p 
+                            className="text-[10px] italic leading-normal pr-4" 
+                            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                            title={getOutreachDraft(prospect, job)}
+                          >
+                            {getOutreachDraft(prospect, job)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 pt-2.5 border-t border-gray-100">
+                      {isTerminal ? (
+                        <button 
+                          onClick={() => triggerStageTransition(matchItem.id, 'MATCHED', prospect.name, matchItem.stage)} 
+                          className="flex-1 py-2 border border-gray-200 bg-white hover:bg-gray-100 text-gray-700 rounded-lg text-xs font-bold text-center transition-colors active:scale-95 shadow-xs"
+                        >
+                          Re-activate
+                        </button>
+                      ) : (
+                        <>
+                          {currentIdx > 0 && (
+                            <button 
+                              onClick={() => triggerStageTransition(matchItem.id, ACTIVE_STAGES[currentIdx - 1].id, prospect.name, matchItem.stage)} 
+                              className="px-3 py-2 border border-gray-200 bg-white text-gray-500 rounded-lg hover:bg-gray-100 transition-colors shadow-xs flex items-center justify-center active:scale-95"
+                              title="Regress Stage"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                             </button>
                           )}
-                          {!isTerminal && currentIdx < ACTIVE_STAGES.length - 1 && (
-                            <div className="relative group inline-block">
-                              <button className="p-1.5 border border-green-600 bg-green-50 text-green-700 rounded hover:bg-green-600 hover:text-white transition-colors shadow-sm flex items-center justify-center" title="Advance / Skip Stages">
+                          
+                          {/* Reject outcome */}
+                          <div className="relative group flex-1">
+                            <button className="w-full py-2 border border-rose-200 bg-white hover:bg-rose-50 text-rose-500 rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1 transition-colors active:scale-95 shadow-xs">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                              Reject
+                            </button>
+                            <div className="absolute left-0 bottom-full mb-1.5 w-44 bg-white border border-gray-200 shadow-xl rounded-lg z-30 hidden group-hover:block group-focus-within:block text-left text-[11px] font-bold overflow-hidden">
+                              {TERMINAL_STAGES.map(t => (
+                                <button key={t.id} onClick={() => triggerStageTransition(matchItem.id, t.id, prospect.name, matchItem.stage)} className="block w-full text-left px-3 py-2.5 text-gray-700 hover:bg-rose-50 hover:text-rose-700 border-b border-gray-50 last:border-0 transition-colors">
+                                  {t.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {currentIdx < ACTIVE_STAGES.length - 1 && (
+                            <div className="relative group flex-1">
+                              <button className="w-full py-2 border border-green-600 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1 transition-colors active:scale-95 shadow-xs">
+                                Advance
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                               </button>
-                              <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 shadow-xl rounded-md z-50 hidden group-hover:block group-focus-within:block text-left text-[11px] font-bold overflow-hidden">
+                              <div className="absolute right-0 bottom-full mb-1.5 w-44 bg-white border border-gray-200 shadow-xl rounded-lg z-30 hidden group-hover:block group-focus-within:block text-left text-[11px] font-bold overflow-hidden">
                                 {ACTIVE_STAGES.slice(currentIdx + 1).map(s => (
-                                  <button key={s.id} onClick={() => triggerStageTransition(matchItem.id, s.id, prospect.name, matchItem.stage)} className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-green-50 hover:text-green-700 border-b border-gray-50 last:border-0 transition-colors">
+                                  <button key={s.id} onClick={() => triggerStageTransition(matchItem.id, s.id, prospect.name, matchItem.stage)} className="block w-full text-left px-3 py-2.5 text-gray-700 hover:bg-green-50 hover:text-green-700 border-b border-gray-50 last:border-0 transition-colors">
                                     {s.name}
                                   </button>
                                 ))}
                               </div>
                             </div>
                           )}
-                          
-                          {/* Dropdown for explicitly rejecting */}
-                          {!isTerminal && (
-                            <div className="relative group inline-block">
-                              <button className="p-1.5 border border-rose-200 bg-white text-rose-500 rounded hover:bg-rose-50 transition-colors shadow-sm" title="Mark as Negative Outcome">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                              </button>
-                              <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 shadow-xl rounded-md z-50 hidden group-hover:block group-focus-within:block text-left text-[11px] font-bold overflow-hidden">
-                                {TERMINAL_STAGES.map(t => (
-                                  <button key={t.id} onClick={() => triggerStageTransition(matchItem.id, t.id, prospect.name, matchItem.stage)} className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-rose-50 hover:text-rose-700 border-b border-gray-50 last:border-0 transition-colors">
-                                    {t.name}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {isTerminal && (
-                            <button onClick={() => triggerStageTransition(matchItem.id, 'MATCHED', prospect.name, matchItem.stage)} className="px-2 py-1 border border-gray-200 bg-white text-gray-600 rounded hover:bg-gray-100 text-[10px] font-bold shadow-sm transition-colors" title="Re-engage candidate">
-                              Re-activate
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

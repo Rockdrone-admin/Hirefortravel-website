@@ -198,6 +198,71 @@ export default function UsersManager() {
         </table>
       </div>
 
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="p-10 text-center text-gray-400 italic bg-white rounded-xl border border-gray-200">Loading users...</div>
+        ) : users.length === 0 ? (
+          <div className="p-10 text-center text-gray-400 italic bg-white rounded-xl border border-gray-200">No users found.</div>
+        ) : (
+          users.map((user) => (
+            <div key={user.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-950 text-sm truncate">{user.username}</div>
+                  {user.email && (
+                    <div className="text-xs text-gray-500 mt-0.5 truncate">{user.email}</div>
+                  )}
+                </div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
+                  user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {user.is_active ? 'Active' : 'Deactivated'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                  {user.role}
+                </span>
+                {user.must_reset_password && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-800">
+                    Needs Reset
+                  </span>
+                )}
+              </div>
+
+              <div className="text-xs text-gray-500">
+                Last login: {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never'}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
+                <button 
+                  onClick={() => handleToggleStatus(user)}
+                  className={`${user.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'} font-medium text-sm`}
+                >
+                  {user.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button 
+                  onClick={() => handleEditClick(user)}
+                  className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                >
+                  Edit / Reset Password
+                </button>
+                {!user.is_active && (
+                  <button 
+                    onClick={() => handleDeleteUser(user)}
+                    className="text-red-600 hover:text-red-800 font-medium text-sm"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
       <UserModal 
         isOpen={isModalOpen} 
         user={editingUser}

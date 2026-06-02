@@ -428,7 +428,7 @@ export default function AISettingsPage() {
                           />
                           <div className="absolute right-2.5 top-3 opacity-0 group-hover:opacity-45 pointer-events-none transition-opacity">
                             <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.83 21.75a0.75 0 01-1.043 0.083L2.4 19.5a0.75 0 010.082-1.043l13.5-10.5z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.83 21.75a0.75 0 0 1-1.043 0.083L2.4 19.5a0.75 0 0 1 0.082-1.043l13.5-10.5z" />
                             </svg>
                           </div>
                         </div>
@@ -540,7 +540,7 @@ export default function AISettingsPage() {
                           />
                           <div className="absolute right-2.5 top-3 opacity-0 group-hover:opacity-45 pointer-events-none transition-opacity">
                             <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.83 21.75a0.75 0 01-1.043 0.083L2.4 19.5a0.75 0 010.082-1.043l13.5-10.5z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.83 21.75a0.75 0 0 1-1.043 0.083L2.4 19.5a0.75 0 0 1 0.082-1.043l13.5-10.5z" />
                             </svg>
                           </div>
                         </div>
@@ -744,7 +744,7 @@ export default function AISettingsPage() {
 
               <div className="space-y-4 pt-4 border-t border-gray-100 flex-1">
                 <label className="text-[11px] font-extrabold uppercase tracking-widest text-gray-400 mb-2 block">Active Provider</label>
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                   <label className={`flex-1 flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${scraperChoice === 'apify' ? 'border-green-600 bg-green-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
                     <div className="flex items-center gap-3">
                       <input 

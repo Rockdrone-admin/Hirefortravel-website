@@ -4,6 +4,7 @@ import { getCorsHeaders } from '../../../../../lib/cors';
 import { enrichLinkedInProfile } from '../../../../../lib/enrichment/index.js';
 import { scoreAndEvaluateProspect } from '../../../../../lib/gemini';
 import { logActivityEvent } from '../../../../../lib/auth';
+import { updateSourcingProgress } from '../../../../../lib/sourcing';
 
 export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
@@ -26,19 +27,7 @@ export async function POST(req) {
     console.log(`[Sourcing Saga: Enrich] 👤 Triggered candidate profile enrichment | URL: ${linkedinUrl} | Job: ${jobId}`);
 
     // Set operational phase & progress: Phase 3 (Analyzing Profiles)
-    global.sourcingRunPhases = global.sourcingRunPhases || {};
-    global.sourcingRunProgress = global.sourcingRunProgress || {};
-    global.sourcingRunPhases[runId] = "Evaluating candidates for the best fit...";
-    global.sourcingRunProgress[runId] = 75;
-
-    // Update updated_at in DB to register activity and reset idle timer before starting slow scraper/AI calls
-    if (supabase) {
-      await supabase
-        .from('sourcing_runs')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', runId)
-        .eq('environment', environment);
-    }
+    await updateSourcingProgress(runId, "Evaluating candidates for the best fit...", 75, environment);
 
     // Fetch Job details for matching
     const { data: job, error: jobError } = await supabase
@@ -332,15 +321,23 @@ export async function POST(req) {
     // 6. INCREMENT DISCOVERED COUNT IN SOURCING RUN
     const { data: run } = await supabase
       .from('sourcing_runs')
-      .select('total_discovered, positions_targeted, status')
+      .select('total_discovered, positions_targeted, status, total_jobs, jobs_completed, total_expected_enrichments')
       .eq('id', runId)
       .eq('environment', environment)
       .single();
 
     if (run) {
       const nextCount = (run.total_discovered || 0) + 1;
-      // Mark sourcing runs completed if we successfully finished our discovery loop
-      const nextStatus = nextCount >= 50 ? 'completed' : 'running';
+      
+      let nextStatus = 'running';
+      if (run.total_jobs !== undefined && run.total_jobs !== null && run.total_expected_enrichments !== undefined && run.total_expected_enrichments !== null) {
+        const allSearchesFinished = (run.jobs_completed || 0) >= run.total_jobs;
+        const allExpectedEnriched = nextCount >= run.total_expected_enrichments;
+        nextStatus = (nextCount >= 50 || (allSearchesFinished && allExpectedEnriched)) ? 'completed' : 'running';
+      } else {
+        // Fallback: Coordinator columns do not exist yet in Supabase
+        nextStatus = nextCount >= 50 ? 'completed' : 'running';
+      }
 
       await supabase
         .from('sourcing_runs')

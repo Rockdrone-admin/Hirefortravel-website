@@ -104,8 +104,23 @@ export async function GET(req, { params }) {
       }
     }
 
-    let current_phase = 'Understanding the role and preparing the search...';
-    let progress_percent = 10;
+    let current_phase = finalRun.current_phase;
+    let progress_percent = finalRun.progress_percent;
+
+    if (current_phase === undefined || current_phase === null) {
+      if (global.sourcingRunPhases && global.sourcingRunPhases[runId]) {
+        current_phase = global.sourcingRunPhases[runId];
+      } else {
+        current_phase = 'Understanding the role and preparing the search...';
+      }
+    }
+    if (progress_percent === undefined || progress_percent === null) {
+      if (global.sourcingRunProgress && typeof global.sourcingRunProgress[runId] === 'number') {
+        progress_percent = global.sourcingRunProgress[runId];
+      } else {
+        progress_percent = 10;
+      }
+    }
 
     if (finalRun.status === 'completed') {
       current_phase = 'All done! Your candidates are ready.';
@@ -113,13 +128,6 @@ export async function GET(req, { params }) {
     } else if (finalRun.status === 'failed') {
       current_phase = 'Sourcing process failed.';
       progress_percent = 100;
-    } else {
-      if (global.sourcingRunPhases && global.sourcingRunPhases[runId]) {
-        current_phase = global.sourcingRunPhases[runId];
-      }
-      if (global.sourcingRunProgress && typeof global.sourcingRunProgress[runId] === 'number') {
-        progress_percent = global.sourcingRunProgress[runId];
-      }
     }
 
     return NextResponse.json({ 

@@ -4,6 +4,7 @@ import { getCorsHeaders } from '../../../../../lib/cors';
 import { parseJobDetailsAndGenerateDorks } from '../../../../../lib/gemini';
 import { Client } from '@upstash/qstash';
 import { requireAuth, logActivityEvent } from '../../../../../lib/auth';
+import { updateSourcingProgress } from '../../../../../lib/sourcing';
 
 export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
@@ -62,6 +63,17 @@ export async function POST(req) {
       return NextResponse.json({ success: false, error: 'Failed to initialize sourcing run record' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
+    // Initialize Coordinator Columns (fails silently if columns don't exist in Supabase)
+    await supabase
+      .from('sourcing_runs')
+      .update({
+        total_jobs: positionIds.length,
+        jobs_completed: 0,
+        total_expected_enrichments: 0
+      })
+      .eq('id', run.id)
+      .eq('environment', environment);
+
     // Log Global Activity
     await logActivityEvent({
       user: authUser,
@@ -74,11 +86,7 @@ export async function POST(req) {
     });
 
     // 3. Process each job and trigger X-ray searches in the background (fire-and-forget)
-    global.sourcingRunPhases = global.sourcingRunPhases || {};
-    global.sourcingRunProgress = global.sourcingRunProgress || {};
-
-    global.sourcingRunPhases[run.id] = "Understanding the role and preparing the search...";
-    global.sourcingRunProgress[run.id] = 10;
+    await updateSourcingProgress(run.id, "Understanding the role and preparing the search...", 10, environment);
 
     const qstashToken = process.env.QSTASH_TOKEN;
     const qstashUrl = process.env.QSTASH_URL || 'https://qstash-eu-central-1.upstash.io';
@@ -232,17 +240,17 @@ export async function POST(req) {
 
         // Once we arrive here, all background search and enrichment triggers have fully finished.
         // For local mode, this means everything is completely done. Let's mark it as completed!
-        global.sourcingRunPhases[run.id] = "Finishing up...";
-        global.sourcingRunProgress[run.id] = 95;
+        await updateSourcingProgress(run.id, "Finishing up...", 95, environment);
         
         if (local || !qstash) {
           const { data: currentRun } = await supabase
             .from('sourcing_runs')
-            .select('status')
+            .select('status, total_jobs')
             .eq('id', run.id)
             .single();
           
-          if (currentRun && currentRun.status === 'running') {
+          // Only force-complete if coordinator columns DO NOT exist (fallback mode)
+          if (currentRun && currentRun.status === 'running' && (currentRun.total_jobs === undefined || currentRun.total_jobs === null)) {
             await supabase
               .from('sourcing_runs')
               .update({ 
@@ -291,8 +299,7 @@ export async function POST(req) {
           console.log(`[Sourcing Saga: Init] [LocalDev] ✅ Sourcing run ${run.id} finished successfully.`);
         }
 
-        global.sourcingRunPhases[run.id] = "All done! Your candidates are ready.";
-        global.sourcingRunProgress[run.id] = 100;
+        await updateSourcingProgress(run.id, "All done! Your candidates are ready.", 100, environment);
 
       } catch (backgroundError) {
         console.error('[Sourcing Saga: Init] ❌ Background sourcing pipeline failed:', backgroundError.message, backgroundError.stack);
@@ -304,10 +311,9 @@ export async function POST(req) {
           })
           .eq('id', run.id);
 
-        global.sourcingRunPhases[run.id] = "Sourcing process failed.";
-        global.sourcingRunProgress[run.id] = 100;
+        await updateSourcingProgress(run.id, "Sourcing process failed.", 100, environment);
       } finally {
-        // Clean up global maps after 5 minutes
+        // Clean up global maps after 5 minutes (in case we fell back to global)
         setTimeout(() => {
           if (global.sourcingRunPhases) delete global.sourcingRunPhases[run.id];
           if (global.sourcingRunProgress) delete global.sourcingRunProgress[run.id];

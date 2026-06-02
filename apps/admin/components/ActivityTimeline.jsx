@@ -602,7 +602,7 @@ export default function ActivityTimeline({
                     ) : null}
                     <div className="relative flex space-x-3">
                       <div>{getEventIcon(event.event_type)}</div>
-                      <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
+                      <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-1 sm:gap-4 flex-1 min-w-0 pt-1.5">
                         {isLoginLogout ? (
                           <div>
                             <p className="text-sm text-gray-900">
@@ -633,7 +633,7 @@ export default function ActivityTimeline({
                             )}
                           </div>
                         )}
-                        <div className="whitespace-nowrap text-right text-xs text-gray-500">
+                        <div className="whitespace-nowrap text-left sm:text-right text-xs text-gray-500">
                           {new Date(event.created_at).toLocaleString(undefined, {
                             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                           })}

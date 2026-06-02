@@ -29,14 +29,14 @@ export default function SettingsLayout({ children }) {
 
       {/* Horizontal Tabs sub-navigation */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          <Link href="/settings/users" className={tabClasses('/settings/users')}>
+        <nav className="-mb-px flex space-x-8 overflow-x-auto scrollbar-none pb-px" aria-label="Tabs">
+          <Link href="/settings/users" className={`${tabClasses('/settings/users')} flex-shrink-0`}>
             Users & Roles
           </Link>
-          <Link href="/settings/roles" className={tabClasses('/settings/roles')}>
+          <Link href="/settings/roles" className={`${tabClasses('/settings/roles')} flex-shrink-0`}>
             Role Permissions
           </Link>
-          <Link href="/settings/ai-settings" className={tabClasses('/settings/ai-settings')}>
+          <Link href="/settings/ai-settings" className={`${tabClasses('/settings/ai-settings')} flex-shrink-0`}>
             AI Settings
           </Link>
         </nav>

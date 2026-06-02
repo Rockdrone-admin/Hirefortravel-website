@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../../../lib/supabase';
 import { getCorsHeaders } from '../../../../../lib/cors';
 import { Client } from '@upstash/qstash';
+import { logActivityEvent } from '../../../../../lib/auth';
+import { updateSourcingProgress } from '../../../../../lib/sourcing';
 
 export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
@@ -28,19 +30,7 @@ export async function POST(req) {
     const countryName = body.countryName || '';
 
     // Set operational phase & progress: Phase 2 (Finding Candidates)
-    global.sourcingRunPhases = global.sourcingRunPhases || {};
-    global.sourcingRunProgress = global.sourcingRunProgress || {};
-    global.sourcingRunPhases[runId] = "Scanning the talent market for matching professional profiles...";
-    global.sourcingRunProgress[runId] = 40;
-
-    // Update updated_at in DB to register activity and reset idle timer before starting discovery operations
-    if (supabase) {
-      await supabase
-        .from('sourcing_runs')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', runId)
-        .eq('environment', environment);
-    }
+    await updateSourcingProgress(runId, "Scanning the talent market for matching professional profiles...", 40, environment);
 
     // Check if Bright Data Key is configured
     const brightDataKey = process.env.BRIGHTDATA_API_KEY;
@@ -159,13 +149,100 @@ export async function POST(req) {
     const targetProfiles = localUniqueProfiles.filter(p => !matchedUrlsToSkip.has(p.url.toLowerCase()));
     console.log(`[Sourcing Saga: Dedupe] [Dedupe Batch] Remaining unique profiles to enrich: ${targetProfiles.length} (out of ${localUniqueProfiles.length} original)`);
 
-    if (targetProfiles.length > 0) {
-      // Limit to targetLimit remaining candidates to prevent over-scraping
-      const remainingLimit = targetLimit - qualifiedCount;
-      const finalTargetProfiles = targetProfiles.slice(0, Math.max(5, remainingLimit));
+    // Determine final target profiles and expected enrichment count
+    const remainingLimit = targetLimit - qualifiedCount;
+    const finalTargetProfiles = targetProfiles.length > 0 
+      ? targetProfiles.slice(0, Math.max(5, remainingLimit)) 
+      : [];
+    totalDiscoveredCount = finalTargetProfiles.length;
 
-      totalDiscoveredCount = finalTargetProfiles.length;
+    // Update coordinator columns in DB BEFORE triggering the enrichments
+    if (supabase) {
+      try {
+        const { data: run } = await supabase
+          .from('sourcing_runs')
+          .select('total_jobs, jobs_completed, total_expected_enrichments, total_discovered, positions_targeted, status')
+          .eq('id', runId)
+          .eq('environment', environment)
+          .single();
 
+        if (run) {
+          if (run.total_jobs !== undefined && run.total_jobs !== null) {
+            const nextJobsCompleted = (run.jobs_completed || 0) + 1;
+            const nextExpectedEnrichments = (run.total_expected_enrichments || 0) + totalDiscoveredCount;
+
+            let nextStatus = 'running';
+            let isFinished = false;
+            
+            if (nextJobsCompleted >= run.total_jobs && nextExpectedEnrichments === 0) {
+              nextStatus = 'completed';
+              isFinished = true;
+            }
+
+            await supabase
+              .from('sourcing_runs')
+              .update({
+                jobs_completed: nextJobsCompleted,
+                total_expected_enrichments: nextExpectedEnrichments,
+                status: nextStatus,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', runId)
+              .eq('environment', environment);
+
+            if (isFinished) {
+              console.log(`[Sourcing Saga: Search] Run ${runId} has finished searching and found 0 profiles. Concluding run.`);
+              await logActivityEvent({
+                user: { username: 'System', role: 'RECRUITER' },
+                event_type: 'SOURCING_COMPLETED',
+                entity_type: 'SOURCING_RUN',
+                entity_id: runId,
+                title: `AI Sourcing Completed: Sourced 0 candidates`,
+                metadata: { 
+                  job_ids: run.positions_targeted || [], 
+                  candidates_sourced: 0,
+                  high_scoring_sourced: 0
+                },
+                environment
+              });
+            }
+          } else {
+            // Fallback: Coordinator columns don't exist yet in Supabase.
+            // If this is a single job run, and it found 0 profiles, we can auto-complete it!
+            const positions = run.positions_targeted || [];
+            if (positions.length === 1 && totalDiscoveredCount === 0) {
+              await supabase
+                .from('sourcing_runs')
+                .update({
+                  status: 'completed',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', runId)
+                .eq('environment', environment);
+
+              console.log(`[Sourcing Saga: Search] [Fallback] Single-job run ${runId} found 0 profiles. Concluding run.`);
+              await logActivityEvent({
+                user: { username: 'System', role: 'RECRUITER' },
+                event_type: 'SOURCING_COMPLETED',
+                entity_type: 'SOURCING_RUN',
+                entity_id: runId,
+                title: `AI Sourcing Completed: Sourced 0 candidates`,
+                metadata: { 
+                  job_ids: positions, 
+                  candidates_sourced: 0,
+                  high_scoring_sourced: 0
+                },
+                environment
+              });
+            }
+          }
+        }
+      } catch (coordErr) {
+        console.error('[Sourcing Saga: Search] Failed in completion coordination check:', coordErr.message);
+      }
+    }
+
+    if (finalTargetProfiles.length > 0) {
       // Process profiles in controlled batches of 2 (concurrency = 2)
       const concurrencyLimit = 2;
       for (let i = 0; i < finalTargetProfiles.length; i += concurrencyLimit) {

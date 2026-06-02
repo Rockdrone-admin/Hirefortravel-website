@@ -29,14 +29,14 @@ export default function ProspectsLayout({ children }) {
 
       {/* Horizontal Tabs sub-navigation */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          <Link href="/prospects/sourcing" className={tabClasses('/prospects/sourcing')}>
+        <nav className="-mb-px flex space-x-8 overflow-x-auto scrollbar-none pb-px" aria-label="Tabs">
+          <Link href="/prospects/sourcing" className={`${tabClasses('/prospects/sourcing')} flex-shrink-0`}>
             AI Sourcing
           </Link>
-          <Link href="/prospects/crm" className={tabClasses('/prospects/crm')}>
+          <Link href="/prospects/crm" className={`${tabClasses('/prospects/crm')} flex-shrink-0`}>
             Prospects CRM
           </Link>
-          <Link href="/prospects/archive" className={tabClasses('/prospects/archive')}>
+          <Link href="/prospects/archive" className={`${tabClasses('/prospects/archive')} flex-shrink-0`}>
             Archive
           </Link>
         </nav>

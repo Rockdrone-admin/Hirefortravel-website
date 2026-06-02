@@ -229,7 +229,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
         {/* Overlay backdrop */}
         <div className="absolute inset-0 bg-black/40 transition-opacity" onClick={onClose} />
 
-        <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10 md:pl-16">
+        <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-2 sm:pl-10 md:pl-16">
           <div className="pointer-events-auto w-screen max-w-2xl">
             <div className="flex h-full flex-col overflow-y-scroll bg-white shadow-2xl">
               
