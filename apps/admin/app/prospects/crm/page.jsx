@@ -440,6 +440,27 @@ export default function ProspectsCRMBoard() {
             {uniqueOwners.map(owner => <option key={owner} value={owner}>{owner}</option>)}
           </select>
 
+          {/* Mobile Only Sort Dropdown */}
+          <select 
+            value={`${sortConfig.key}:${sortConfig.direction}`} 
+            onChange={(e) => {
+              const [key, direction] = e.target.value.split(':');
+              const newConfig = { key, direction };
+              setSortConfig(newConfig);
+              localStorage.setItem('hirefortravel_crm_sortConfig', JSON.stringify(newConfig));
+            }} 
+            className="text-xs border-gray-200 rounded-md focus:ring-green-700 bg-white pr-8 py-1.5 font-semibold text-gray-600 md:hidden"
+          >
+            <option value="score:desc">Sort: Score (High-Low)</option>
+            <option value="score:asc">Sort: Score (Low-High)</option>
+            <option value="name:asc">Sort: Name (A-Z)</option>
+            <option value="name:desc">Sort: Name (Z-A)</option>
+            <option value="identified:desc">Sort: Newest Sourced</option>
+            <option value="identified:asc">Sort: Oldest Sourced</option>
+            <option value="duration:desc">Sort: In Stage (Longest)</option>
+            <option value="duration:asc">Sort: In Stage (Shortest)</option>
+          </select>
+
           {(selectedProspects.length > 0 || searchQuery) && (
             <button onClick={() => { setSelectedProspects([]); setSearchQuery(''); }} className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors">Clear All</button>
           )}

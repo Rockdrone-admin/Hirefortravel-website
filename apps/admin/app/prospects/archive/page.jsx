@@ -287,6 +287,25 @@ export default function ProspectsArchive() {
             ))}
           </select>
 
+          {/* Mobile Only Sort Dropdown */}
+          <select
+            value={`${sortConfig.key}:${sortConfig.direction}`}
+            onChange={(e) => {
+              const [key, direction] = e.target.value.split(':');
+              const newConfig = { key, direction };
+              setSortConfig(newConfig);
+              localStorage.setItem('hirefortravel_archive_sortConfig', JSON.stringify(newConfig));
+            }}
+            className="text-xs border-gray-250 rounded-md focus:ring-green-700 focus:border-green-700 bg-white pr-8 py-1.5 font-semibold text-gray-600 md:hidden"
+          >
+            <option value="identified:desc">Sort: Newest Archived</option>
+            <option value="identified:asc">Sort: Oldest Archived</option>
+            <option value="score:desc">Sort: Score (High-Low)</option>
+            <option value="score:asc">Sort: Score (Low-High)</option>
+            <option value="name:asc">Sort: Name (A-Z)</option>
+            <option value="name:desc">Sort: Name (Z-A)</option>
+          </select>
+
           {/* Top dropdown sort removed - replaced by column header clicking */}
 
           {(selectedProspects.length > 0 || searchQuery || selectedJobId !== 'all') && (
