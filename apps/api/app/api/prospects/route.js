@@ -10,6 +10,8 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   try {
     const environment = getEnvironment();
+    const { error: authError, status: authStatus } = await requireAuth('can_access_prospects');
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
     const { searchParams } = new URL(req.url);
 
     // Retrieve Filter Parameters
@@ -97,12 +99,30 @@ export async function GET(req) {
 
     if (search) {
       const s = search.toLowerCase();
-      filteredMatches = filteredMatches.filter(m => 
-        m.prospect?.name?.toLowerCase().includes(s) ||
-        m.prospect?.latest_company?.toLowerCase().includes(s) ||
-        m.prospect?.latest_title?.toLowerCase().includes(s) ||
-        m.prospect?.functional_field?.toLowerCase().includes(s)
-      );
+      filteredMatches = filteredMatches.filter(m => {
+        // 1. Basic profile info and location/contact fields
+        const matchesProfile = 
+          m.prospect?.name?.toLowerCase().includes(s) ||
+          m.prospect?.latest_company?.toLowerCase().includes(s) ||
+          m.prospect?.latest_title?.toLowerCase().includes(s) ||
+          m.prospect?.functional_field?.toLowerCase().includes(s) ||
+          m.prospect?.city?.toLowerCase().includes(s) ||
+          m.prospect?.email?.toLowerCase().includes(s) ||
+          m.prospect?.phone?.toLowerCase().includes(s);
+
+        if (matchesProfile) return true;
+
+        // 2. Search past remarks (human_notes on ANY match for the same prospect)
+        const prospectId = m.prospect?.id;
+        if (!prospectId) return false;
+        
+        const matchesRemarks = matches.some(otherMatch => 
+          otherMatch.prospect?.id === prospectId && 
+          otherMatch.human_notes?.toLowerCase().includes(s)
+        );
+
+        return matchesRemarks;
+      });
     }
 
     if (hasLinkedin) {
@@ -151,7 +171,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_prospects');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const body = await req.json();
@@ -282,8 +302,8 @@ export async function POST(req) {
       event_type: 'CANDIDATE_CREATED',
       entity_type: 'prospect',
       entity_id: prospectId,
-      title: `Manually added candidate`,
-      description: `Mapped candidate ${name} to Job: ${jobTitle}`,
+      title: `Manually added candidate ${name}`,
+      description: remarks || null,
       metadata: { job_id: jobId, stage: stage || 'MATCHED', job_title: jobTitle, candidate_name: name },
       environment
     });

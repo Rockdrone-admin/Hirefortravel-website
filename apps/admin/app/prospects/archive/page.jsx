@@ -211,12 +211,28 @@ export default function ProspectsArchive() {
     let matchesSearch = true;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      matchesSearch = (
+      
+      // 1. Basic profile & contact fields
+      const matchesProfile = (
         item.prospect?.name?.toLowerCase().includes(q) ||
         item.prospect?.latest_company?.toLowerCase().includes(q) ||
         item.prospect?.latest_title?.toLowerCase().includes(q) ||
-        item.prospect?.functional_field?.toLowerCase().includes(q)
+        item.prospect?.functional_field?.toLowerCase().includes(q) ||
+        item.prospect?.city?.toLowerCase().includes(q) ||
+        item.prospect?.email?.toLowerCase().includes(q) ||
+        item.prospect?.phone?.toLowerCase().includes(q)
       );
+
+      if (matchesProfile) {
+        matchesSearch = true;
+      } else {
+        // 2. Search past remarks (human_notes on ANY match for the same prospect)
+        const prospectId = item.prospect?.id;
+        matchesSearch = prospectId ? archivedProspects.some(otherMatch => 
+          otherMatch.prospect?.id === prospectId && 
+          otherMatch.human_notes?.toLowerCase().includes(q)
+        ) : false;
+      }
     }
     return matchesJob && matchesSearch;
   });

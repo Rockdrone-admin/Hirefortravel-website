@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
 import UserModal from '../../../../components/UserModal';
-import ActivityTimeline from '../../../../components/ActivityTimeline';
 import { logCritical } from '@repo/logger';
 
 export default function UsersManager() {
@@ -205,10 +204,6 @@ export default function UsersManager() {
         onClose={() => { setIsModalOpen(false); setEditingUser(null); }} 
         onSave={handleSaveUser}
       />
-
-      <div className="mt-8">
-        <ActivityTimeline title="Recent User & Access Activity" entityType="USER" limit={20} />
-      </div>
     </main>
   );
 }

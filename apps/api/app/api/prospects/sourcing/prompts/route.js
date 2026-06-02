@@ -12,7 +12,7 @@ export async function GET(req) {
   try {
     const environment = getEnvironment();
     // We only need to check permissions, no user details required for GET
-    const { error: authError, status: authStatus } = await requireAuth('can_manage_ai_settings');
+    const { error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
     
     if (!supabase) {
@@ -70,7 +70,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_manage_ai_settings');
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const body = await req.json();

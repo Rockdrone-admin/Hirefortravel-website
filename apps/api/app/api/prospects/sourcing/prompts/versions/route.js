@@ -10,7 +10,7 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   try {
     const environment = getEnvironment();
-    const { error: authError, status: authStatus } = await requireAuth('can_manage_ai_settings');
+    const { error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     if (!supabase) {
@@ -39,7 +39,7 @@ export async function GET(req) {
 export async function DELETE(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_manage_ai_settings');
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const { searchParams } = new URL(req.url);

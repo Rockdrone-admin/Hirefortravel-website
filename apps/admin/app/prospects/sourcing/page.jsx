@@ -680,8 +680,8 @@ export default function AISourcingPage() {
         {/* Table Filters & Toolbar */}
         <div className="p-6 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gray-50/50">
           <div>
-            <h2 className="text-base font-bold text-gray-800">Discovered Prospects (IDENTIFIED)</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Below are passive candidates matching your job filters. Move them to Prospects CRM to outreach.</p>
+            <h2 className="text-base font-bold text-gray-800">Discovered Prospects</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Below are passive candidates matching your job filters. Once reviewed and matched, they are moved to the CRM for outreach.</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">

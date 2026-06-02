@@ -4,19 +4,28 @@ import { SESSION_COOKIE_NAME } from './session-cookie';
 
 const DEFAULT_ROLE_PERMISSIONS = {
   SUPER_ADMIN: {
-    can_manage_users: true,
-    can_delete_jobs: true,
-    can_manage_ai_settings: true
+    can_access_dashboard: true,
+    can_access_jobs: true,
+    can_access_companies: true,
+    can_access_prospects: true,
+    can_access_activity: true,
+    can_access_settings: true
   },
   ADMIN: {
-    can_manage_users: false,
-    can_delete_jobs: true,
-    can_manage_ai_settings: true
+    can_access_dashboard: true,
+    can_access_jobs: true,
+    can_access_companies: true,
+    can_access_prospects: true,
+    can_access_activity: true,
+    can_access_settings: true
   },
   RECRUITER: {
-    can_manage_users: false,
-    can_delete_jobs: false,
-    can_manage_ai_settings: false
+    can_access_dashboard: true,
+    can_access_jobs: true,
+    can_access_companies: true,
+    can_access_prospects: true,
+    can_access_activity: true,
+    can_access_settings: false
   }
 };
 

@@ -7,11 +7,31 @@ export default function ActivityTimeline({
   entityId = null, 
   userId = null,
   title = "Activity Timeline",
-  limit = 50
+  limit = 50,
+  enableControls = false
 }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ipLocations, setIpLocations] = useState({});
+
+  // Controller states for controls
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(limit);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     if (events.length === 0) return;
@@ -59,13 +79,27 @@ export default function ActivityTimeline({
 
   useEffect(() => {
     fetchEvents();
-  }, [entityType, entityId, userId]);
+  }, [page, pageSize, category, sortBy, sortOrder, debouncedSearch, entityType, entityId, userId]);
 
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      let queryUrl = `${API_URL}/api/admin/events?limit=${limit}`;
-      if (entityType) queryUrl += `&entity_type=${entityType}`;
+      
+      let queryUrl = `${API_URL}/api/admin/events?`;
+      
+      if (enableControls) {
+        queryUrl += `page=${page}&limit=${pageSize}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+        if (category) {
+          queryUrl += `&category=${category}`;
+        }
+        if (debouncedSearch) {
+          queryUrl += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
+        }
+      } else {
+        queryUrl += `limit=${limit}`;
+        if (entityType) queryUrl += `&entity_type=${entityType}`;
+      }
+      
       if (entityId) queryUrl += `&entity_id=${entityId}`;
       if (userId) queryUrl += `&user_id=${userId}`;
 
@@ -74,6 +108,13 @@ export default function ActivityTimeline({
       
       if (result.success) {
         setEvents(result.data);
+        if (result.pagination) {
+          setTotalCount(result.pagination.total);
+          setTotalPages(result.pagination.totalPages);
+        } else {
+          setTotalCount(result.data.length);
+          setTotalPages(1);
+        }
       } else {
         logCritical('Admin: API returned success:false when fetching events', { result });
       }
@@ -82,6 +123,79 @@ export default function ActivityTimeline({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCategoryChange = (val) => {
+    setCategory(val);
+    setPage(1);
+  };
+
+  const handleSearchChange = (val) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const renderPageButtons = () => {
+    const buttons = [];
+    const maxVisible = 5;
+    
+    let start = Math.max(1, page - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    if (start > 1) {
+      buttons.push(
+        <button
+          key={1}
+          type="button"
+          onClick={() => setPage(1)}
+          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border border-gray-200 bg-white text-gray-600 hover:bg-gray-50`}
+        >
+          1
+        </button>
+      );
+      if (start > 2) {
+        buttons.push(<span key="dots-start" className="px-1 text-gray-400">...</span>);
+      }
+    }
+    
+    for (let i = start; i <= end; i++) {
+      buttons.push(
+        <button
+          key={i}
+          type="button"
+          onClick={() => setPage(i)}
+          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+            page === i
+              ? 'bg-green-700 text-white shadow-xs'
+              : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          {i}
+        </button>
+      );
+    }
+    
+    if (end < totalPages) {
+      if (end < totalPages - 1) {
+        buttons.push(<span key="dots-end" className="px-1 text-gray-400">...</span>);
+      }
+      buttons.push(
+        <button
+          key={totalPages}
+          type="button"
+          onClick={() => setPage(totalPages)}
+          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border border-gray-200 bg-white text-gray-600 hover:bg-gray-50`}
+        >
+          {totalPages}
+        </button>
+      );
+    }
+    
+    return buttons;
   };
 
   const getEventIcon = (type) => {
@@ -159,7 +273,41 @@ export default function ActivityTimeline({
     return autoPatterns.some(regex => regex.test(d));
   };
 
-  const formatMetadata = (metadata, eventType = null) => {
+  const sanitizeMetadata = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    if (Array.isArray(obj)) {
+      return obj.map(sanitizeMetadata);
+    }
+    
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const lowerKey = key.toLowerCase();
+      // Skip keys containing sensitive information or raw URLs
+      if (
+        lowerKey === 'logo_url' || 
+        lowerKey === 'logourl' || 
+        lowerKey === 'password' || 
+        lowerKey === 'password_hash' ||
+        lowerKey === 'reset_token' ||
+        lowerKey === 'session_token'
+      ) {
+        continue;
+      }
+      
+      if (typeof value === 'object' && value !== null) {
+        sanitized[key] = sanitizeMetadata(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  };
+
+  const formatMetadata = (rawMetadata, eventType = null) => {
+    if (!rawMetadata || Object.keys(rawMetadata).length === 0) return null;
+
+    const metadata = sanitizeMetadata(rawMetadata);
     if (!metadata || Object.keys(metadata).length === 0) return null;
 
     if (eventType === 'SOURCING_COMPLETED') {
@@ -197,8 +345,18 @@ export default function ActivityTimeline({
       role: 'User Role',
       is_active: 'Account Status',
       must_reset_password: 'Password Reset Required',
-      password: 'Password'
+      password: 'Password',
+      can_access_dashboard: 'Dashboard Access',
+      can_access_jobs: 'Jobs Access',
+      can_access_companies: 'Companies Access',
+      can_access_prospects: 'Prospects Access',
+      can_access_activity: 'Activity Access',
+      can_access_settings: 'Settings Access'
     };
+
+    let changesNode = null;
+    let permissionsNode = null;
+    let customPropsNode = null;
 
     // 1. Render visual field changes
     if (metadata.changes && Array.isArray(metadata.changes)) {
@@ -209,7 +367,7 @@ export default function ActivityTimeline({
       });
       
       if (filteredChanges.length > 0) {
-        return (
+        changesNode = (
           <div className="mt-2 space-y-1.5 pl-1.5">
             {filteredChanges.map((change, index) => {
               const label = fieldLabels[change.field] || change.field;
@@ -230,11 +388,9 @@ export default function ActivityTimeline({
                 <div key={index} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
                   <span className="w-1 h-1 rounded-full bg-gray-400"></span>
                   <span className="font-semibold text-gray-700">{label}</span>
-                  <span>changed from</span>
+                  <span>Changed from</span>
                   <span className="line-through text-gray-400 bg-gray-100 px-1 py-0.2 rounded font-mono text-[10.5px]">{prevVal}</span>
-                  <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <span className="text-gray-400 font-bold">&gt;</span>
                   <span className="font-bold text-green-700 bg-green-50 border border-green-100 px-1.5 py-0.2 rounded text-[10.5px]">{nextVal}</span>
                 </div>
               );
@@ -242,39 +398,111 @@ export default function ActivityTimeline({
           </div>
         );
       }
-      return null;
     }
 
-    // 2. Render other premium properties
-    const ignoredKeys = ['changes', 'job_id', 'run_id', 'job_ids', 'triggered_by', 'sourced_at', 'candidate_name', 'ip', 'device', 'user_agent', 'userAgent', 'session_id', 'sessionId'];
+    // 2. Custom render for permissions objects (if present)
+    const perms = metadata.new_permissions || metadata.permissions;
+    if (perms && typeof perms === 'object') {
+      const permLabels = {
+        can_access_dashboard: 'Dashboard',
+        can_access_jobs: 'Jobs',
+        can_access_companies: 'Companies',
+        can_access_prospects: 'Prospects',
+        can_access_activity: 'Activity',
+        can_access_settings: 'Settings'
+      };
+
+      const enabled = [];
+      const disabled = [];
+
+      Object.entries(perms).forEach(([key, val]) => {
+        const label = permLabels[key] || key.replace('can_access_', '').replace(/_/g, ' ');
+        if (val === true) {
+          enabled.push(label);
+        } else {
+          disabled.push(label);
+        }
+      });
+
+      permissionsNode = (
+        <div className="mt-2.5 bg-gray-50/50 border border-gray-100 rounded-xl p-3 space-y-2 max-w-lg">
+          {enabled.length > 0 && (
+            <div className="text-xs text-gray-600 flex items-start gap-2">
+              <span className="font-semibold text-green-700 uppercase tracking-wider text-[9px] w-24 block mt-0.5">ENABLED ACCESS:</span>
+              <div className="flex flex-wrap gap-1 flex-1">
+                {enabled.map(label => (
+                  <span key={label} className="bg-green-50 border border-green-100 text-green-800 px-2 py-0.5 rounded-md font-semibold text-[10.5px]">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {disabled.length > 0 && (
+            <div className="text-xs text-gray-600 flex items-start gap-2">
+              <span className="font-semibold text-red-700 uppercase tracking-wider text-[9px] w-24 block mt-0.5">RESTRICTED:</span>
+              <div className="flex flex-wrap gap-1 flex-1">
+                {disabled.map(label => (
+                  <span key={label} className="bg-red-50 border border-red-100 text-red-800 px-2 py-0.5 rounded-md font-semibold text-[10.5px]">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 3. Render other premium properties
+    const ignoredKeys = [
+      'changes', 'job_id', 'run_id', 'job_ids', 'triggered_by', 'sourced_at', 'candidate_name',
+      'ip', 'device', 'user_agent', 'userAgent', 'session_id', 'sessionId',
+      'company_name', 'companyName', 'logo_url', 'logoUrl', 'new_permissions', 'permissions'
+    ];
     const visibleEntries = Object.entries(metadata).filter(([key]) => !ignoredKeys.includes(key));
 
-    if (visibleEntries.length === 0) return null;
+    if (visibleEntries.length > 0) {
+      customPropsNode = (
+        <div className="mt-3 bg-gray-50/50 border border-gray-100 rounded-xl p-3 space-y-1.5">
+          {visibleEntries.map(([key, value]) => {
+            const label = key.replace(/_/g, ' ');
+            let renderedValue = '';
 
-    return (
-      <div className="mt-3 bg-gray-50/50 border border-gray-100 rounded-xl p-3 space-y-1.5">
-        {visibleEntries.map(([key, value]) => {
-          const label = key.replace(/_/g, ' ');
-          let renderedValue = '';
+            if (Array.isArray(value)) {
+              renderedValue = value.join(', ');
+            } else if (typeof value === 'object') {
+              renderedValue = JSON.stringify(value);
+            } else {
+              renderedValue = String(value);
+              if (key === 'ai_score') renderedValue = `${renderedValue}%`;
+            }
 
-          if (Array.isArray(value)) {
-            renderedValue = value.join(', ');
-          } else if (typeof value === 'object') {
-            renderedValue = JSON.stringify(value);
-          } else {
-            renderedValue = String(value);
-            if (key === 'ai_score') renderedValue = `${renderedValue}%`;
-          }
+            return (
+              <div key={key} className="text-xs text-gray-600 flex items-center gap-2">
+                <span className="font-semibold text-gray-400 uppercase tracking-wider text-[9px] w-28 block capitalize">{label}:</span>
+                <span className="text-gray-800 font-semibold">{renderedValue}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
 
-          return (
-            <div key={key} className="text-xs text-gray-600 flex items-center gap-2">
-              <span className="font-semibold text-gray-400 uppercase tracking-wider text-[9px] w-28 block capitalize">{label}:</span>
-              <span className="text-gray-800 font-semibold">{renderedValue}</span>
-            </div>
-          );
-        })}
-      </div>
-    );
+    // Combined rendering
+    if (changesNode) {
+      return changesNode;
+    }
+
+    if (permissionsNode) {
+      return permissionsNode;
+    }
+
+    if (customPropsNode) {
+      return customPropsNode;
+    }
+
+    return null;
   };
 
   return (
@@ -287,6 +515,74 @@ export default function ActivityTimeline({
           </svg>
         </button>
       </div>
+
+      {enableControls && (
+        <div className="mb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between border-b border-gray-100 pb-5">
+          {/* Search Box */}
+          <div className="relative flex-1 max-w-md">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search by title, remark, user..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9 pr-4 py-2 w-full text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-green-600 focus:border-green-600 outline-hidden bg-gray-50/50"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Select Controls */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Section Category Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Filter:</span>
+              <select
+                value={category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-semibold text-gray-700 outline-hidden focus:border-green-600 focus:ring-1 focus:ring-green-600"
+              >
+                <option value="">All Sections</option>
+                <option value="Jobs">Jobs</option>
+                <option value="Companies">Companies</option>
+                <option value="Prospects">Prospects</option>
+                <option value="Settings">Settings</option>
+              </select>
+            </div>
+
+            {/* Limit Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Show:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(parseInt(e.target.value));
+                  setPage(1);
+                }}
+                className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-semibold text-gray-700 outline-hidden focus:border-green-600 focus:ring-1 focus:ring-green-600"
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-8 text-gray-400 text-sm">Loading activity...</div>
@@ -349,6 +645,45 @@ export default function ActivityTimeline({
               );
             })}
           </ul>
+
+          {enableControls && totalPages > 1 && (
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 items-center justify-between border-t border-gray-150 pt-5 text-sm text-gray-500">
+              <div>
+                Showing <span className="font-semibold text-gray-800">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+                <span className="font-semibold text-gray-800">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+                <span className="font-semibold text-gray-800">{totalCount}</span> entries
+              </div>
+              <div className="flex gap-2 items-center">
+                <button
+                  type="button"
+                  onClick={() => setPage(p => Math.max(p - 1, 1))}
+                  disabled={page === 1}
+                  className={`px-3 py-1.5 border rounded-lg font-medium text-xs transition-colors ${
+                    page === 1
+                      ? 'border-gray-150 bg-gray-50 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-200 bg-white hover:bg-gray-50 hover:text-green-700 text-gray-600'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                {renderPageButtons()}
+
+                <button
+                  type="button"
+                  onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+                  disabled={page === totalPages}
+                  className={`px-3 py-1.5 border rounded-lg font-medium text-xs transition-colors ${
+                    page === totalPages
+                      ? 'border-gray-150 bg-gray-50 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-200 bg-white hover:bg-gray-50 hover:text-green-700 text-gray-600'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

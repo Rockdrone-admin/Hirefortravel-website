@@ -11,7 +11,7 @@ export async function OPTIONS(req) {
 export async function GET(req) {
   try {
     const environment = getEnvironment();
-    const { user, error: authError, status: authStatus } = await requireAuth();
+    const { user, error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const { data: users, error } = await supabase
@@ -32,7 +32,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_manage_users');
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const data = await req.json();
@@ -83,7 +83,7 @@ export async function POST(req) {
 export async function PATCH(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_manage_users');
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const data = await req.json();
@@ -200,7 +200,7 @@ export async function PATCH(req) {
 export async function DELETE(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_manage_users');
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_settings');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const { searchParams } = new URL(req.url);

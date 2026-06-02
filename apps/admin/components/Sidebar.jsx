@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 
-export default function Sidebar({ isMobileOpen, setIsMobileOpen, isCollapsed, toggleCollapse, collapseSidebar }) {
+export default function Sidebar({ isMobileOpen, setIsMobileOpen, isCollapsed, toggleCollapse, collapseSidebar, user, hasPermission }) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -29,11 +29,18 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen, isCollapsed, to
   const isActivityActive = pathname === '/settings/activity-timeline';
   const isSettingsActive = (pathname.startsWith('/settings') && pathname !== '/settings/activity-timeline') || pathname.startsWith('/prospects/settings') || pathname.startsWith('/prospects/ai-settings') || pathname.startsWith('/settings/ai-settings');
 
+  const checkPermission = (key) => {
+    if (typeof hasPermission === 'function') {
+      return hasPermission(key);
+    }
+    return true;
+  };
+
   const getLinkClass = (active) => {
     return `px-3 py-2 rounded-md font-medium transition-colors ${
       active 
-        ? 'bg-green-50 text-green-700 font-bold' 
-        : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
+         ? 'bg-green-50 text-green-700 font-bold' 
+         : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
     }`;
   };
 
@@ -67,12 +74,24 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen, isCollapsed, to
         </div>
       </div>
       <nav className="flex flex-col gap-2 flex-1">
-        <Link href="/" className={getLinkClass(isOverviewActive)} onClick={handleNavClick}>Dashboard</Link>
-        <Link href="/jobs" className={getLinkClass(isJobsActive)} onClick={handleNavClick}>Jobs</Link>
-        <Link href="/logos" className={getLinkClass(isLogosActive)} onClick={handleNavClick}>Companies</Link>
-        <Link href="/prospects/sourcing" className={getLinkClass(isProspectsActive)} onClick={handleNavClick}>Prospects</Link>
-        <Link href="/settings/activity-timeline" className={getLinkClass(isActivityActive)} onClick={handleNavClick}>Activity</Link>
-        <Link href="/settings/users" className={getLinkClass(isSettingsActive)} onClick={handleNavClick}>Settings</Link>
+        {checkPermission('can_access_dashboard') && (
+          <Link href="/" className={getLinkClass(isOverviewActive)} onClick={handleNavClick}>Dashboard</Link>
+        )}
+        {checkPermission('can_access_jobs') && (
+          <Link href="/jobs" className={getLinkClass(isJobsActive)} onClick={handleNavClick}>Jobs</Link>
+        )}
+        {checkPermission('can_access_companies') && (
+          <Link href="/logos" className={getLinkClass(isLogosActive)} onClick={handleNavClick}>Companies</Link>
+        )}
+        {checkPermission('can_access_prospects') && (
+          <Link href="/prospects/sourcing" className={getLinkClass(isProspectsActive)} onClick={handleNavClick}>Prospects</Link>
+        )}
+        {checkPermission('can_access_activity') && (
+          <Link href="/settings/activity-timeline" className={getLinkClass(isActivityActive)} onClick={handleNavClick}>Activity</Link>
+        )}
+        {checkPermission('can_access_settings') && (
+          <Link href="/settings/users" className={getLinkClass(isSettingsActive)} onClick={handleNavClick}>Settings</Link>
+        )}
       </nav>
       <div className="border-t border-gray-100 pt-4">
         <button 

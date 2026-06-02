@@ -52,7 +52,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth(); // any logged in user
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_jobs');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const body = await req.json();
@@ -100,7 +100,7 @@ export async function POST(req) {
 export async function PATCH(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_jobs');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const { id, ...updates } = await req.json();
@@ -157,7 +157,7 @@ export async function PATCH(req) {
 export async function DELETE(req) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_delete_jobs');
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_jobs');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const { searchParams } = new URL(req.url);

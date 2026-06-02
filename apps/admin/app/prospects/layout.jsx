@@ -22,8 +22,8 @@ export default function ProspectsLayout({ children }) {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-5">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Prospect Sourcing & Outreach</h1>
-          <p className="text-gray-500 mt-2">AI-driven LinkedIn talent pipeline discovery and CRM outreach workflow.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Prospect Sourcing</h1>
+          <p className="text-gray-500 mt-2">AI-driven talent discovery and CRM outreach workflow.</p>
         </div>
       </div>
 

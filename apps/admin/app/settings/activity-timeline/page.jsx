@@ -12,10 +12,10 @@ export default function ActivityTimelinePage() {
       </div>
       
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* We reuse the ActivityTimeline component here, but set a much higher limit */}
         <ActivityTimeline 
           title="Complete Event Stream" 
-          limit={100} 
+          limit={20} 
+          enableControls={true}
         />
       </div>
     </main>

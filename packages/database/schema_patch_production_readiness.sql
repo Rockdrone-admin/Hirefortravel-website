@@ -6,13 +6,13 @@ BEGIN;
 -- Default role permission rows so protected admin actions do not fail just because the seed data is missing.
 INSERT INTO role_permissions (role, environment, permissions)
 VALUES
-  ('SUPER_ADMIN', 'development', '{"can_manage_users": true, "can_delete_jobs": true, "can_manage_ai_settings": true}'::jsonb),
-  ('ADMIN', 'development', '{"can_manage_users": false, "can_delete_jobs": true, "can_manage_ai_settings": true}'::jsonb),
-  ('RECRUITER', 'development', '{"can_manage_users": false, "can_delete_jobs": false, "can_manage_ai_settings": false}'::jsonb),
-  ('SUPER_ADMIN', 'production', '{"can_manage_users": true, "can_delete_jobs": true, "can_manage_ai_settings": true}'::jsonb),
-  ('ADMIN', 'production', '{"can_manage_users": false, "can_delete_jobs": true, "can_manage_ai_settings": true}'::jsonb),
-  ('RECRUITER', 'production', '{"can_manage_users": false, "can_delete_jobs": false, "can_manage_ai_settings": false}'::jsonb)
-ON CONFLICT (role, environment) DO NOTHING;
+  ('SUPER_ADMIN', 'development', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": true}'::jsonb),
+  ('ADMIN', 'development', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": true}'::jsonb),
+  ('RECRUITER', 'development', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": false}'::jsonb),
+  ('SUPER_ADMIN', 'production', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": true}'::jsonb),
+  ('ADMIN', 'production', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": true}'::jsonb),
+  ('RECRUITER', 'production', '{"can_access_dashboard": true, "can_access_jobs": true, "can_access_companies": true, "can_access_prospects": true, "can_access_activity": true, "can_access_settings": false}'::jsonb)
+ON CONFLICT (role, environment) DO UPDATE SET permissions = EXCLUDED.permissions;
 
 -- Give the legacy public uuid field a stable generated value and enforce uniqueness.
 ALTER TABLE prospects ALTER COLUMN uuid SET DEFAULT uuid_generate_v4();

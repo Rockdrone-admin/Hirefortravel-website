@@ -10,7 +10,7 @@ export async function OPTIONS(req) {
 export async function PATCH(req, { params }) {
   try {
     const environment = getEnvironment();
-    const { user: authUser, error: authError, status: authStatus } = await requireAuth();
+    const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_prospects');
     if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
 
     const matchId = params.id;
@@ -212,6 +212,8 @@ export async function PATCH(req, { params }) {
 export async function GET(req, { params }) {
   try {
     const environment = getEnvironment();
+    const { error: authError, status: authStatus } = await requireAuth('can_access_prospects');
+    if (authError) return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
     const matchId = params.id;
 
     if (!matchId) {
