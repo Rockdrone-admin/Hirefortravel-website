@@ -38,6 +38,9 @@ export async function POST(req) {
         .eq('environment', environment)
         .single();
         
+      const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+      const userAgent = req.headers.get('user-agent') || 'unknown';
+
       if (session && session.admin_users) {
         await supabase.from('activity_events').insert({
           user_id: session.user_id,
@@ -47,7 +50,7 @@ export async function POST(req) {
           entity_type: 'SESSION',
           entity_id: session_token,
           title: 'Logged out',
-          metadata: {},
+          metadata: { device: userAgent, ip },
           environment
         });
       }

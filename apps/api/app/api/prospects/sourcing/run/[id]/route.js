@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../../../../lib/supabase';
 import { getCorsHeaders } from '../../../../../../lib/cors';
+import { logActivityEvent } from '../../../../../../lib/auth';
+
 
 export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
@@ -52,6 +54,52 @@ export async function GET(req, { params }) {
 
         if (!updateErr && completedRun) {
           finalRun = completedRun;
+
+          // Log Sourcing Completed Event for Idle Run
+          let triggeredBy = 'System';
+          try {
+            const { data: runEvent } = await supabase
+              .from('activity_events')
+              .select('user_name')
+              .eq('entity_type', 'SOURCING_RUN')
+              .eq('entity_id', runId)
+              .eq('event_type', 'RUN_AI_SOURCING')
+              .maybeSingle();
+            if (runEvent) {
+              triggeredBy = runEvent.user_name || 'System';
+            }
+          } catch (e) {
+            console.warn('Failed to find run trigger event for idle complete:', e);
+          }
+
+          let highScoringCount = 0;
+          try {
+            const { data: strats } = await supabase
+              .from('sourcing_strategies')
+              .select('high_score_count')
+              .eq('run_id', runId);
+            if (strats) {
+              highScoringCount = strats.reduce((sum, s) => sum + (s.high_score_count || 0), 0);
+            }
+          } catch (e) {
+            console.warn('Failed to query sourcing_strategies for completed count:', e);
+          }
+
+          const mockAuthUser = { username: triggeredBy, role: 'RECRUITER' };
+
+          await logActivityEvent({
+            user: mockAuthUser,
+            event_type: 'SOURCING_COMPLETED',
+            entity_type: 'SOURCING_RUN',
+            entity_id: runId,
+            title: `AI Sourcing Completed: Sourced ${completedRun.total_discovered} candidates`,
+            metadata: { 
+              job_ids: completedRun.positions_targeted, 
+              candidates_sourced: completedRun.total_discovered,
+              high_scoring_sourced: highScoringCount
+            },
+            environment
+          });
         }
       }
     }

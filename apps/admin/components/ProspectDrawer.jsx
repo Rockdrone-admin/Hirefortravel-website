@@ -13,6 +13,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   const [match, setMatch] = useState({});
   const [outreachDraft, setOutreachDraft] = useState('');
   const [users, setUsers] = useState([]);
+  const [recruiterRemarks, setRecruiterRemarks] = useState('');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -66,6 +67,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
 
   useEffect(() => {
     if (!matchId) return;
+    setRecruiterRemarks(''); // Reset remarks textarea to blank every time a new drawer is opened
 
     async function fetchProspectDetails() {
       try {
@@ -105,17 +107,22 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
     try {
       setSaving(true);
 
+      const matchUpdates = {
+        stage: match.stage,
+        manual_score: match.manual_score ? Number(match.manual_score) : null,
+        owner: match.owner,
+        tags: Array.isArray(match.tags) ? match.tags : typeof match.tags === 'string' ? match.tags.split(',').map(t => t.trim()) : []
+      };
+
+      if (recruiterRemarks.trim()) {
+        matchUpdates.human_notes = recruiterRemarks.trim();
+      }
+
       const payload = {
         profileUpdates: profile,
-        matchUpdates: {
-          stage: match.stage,
-          manual_score: match.manual_score ? Number(match.manual_score) : null,
-          human_notes: match.human_notes,
-          owner: match.owner,
-          tags: Array.isArray(match.tags) ? match.tags : typeof match.tags === 'string' ? match.tags.split(',').map(t => t.trim()) : []
-        },
+        matchUpdates,
         changedBy: 'Admin Recruiter', // fallback to session
-        reason: match.human_notes
+        reason: recruiterRemarks.trim() || null
       };
 
       const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
@@ -124,6 +131,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
       const result = await res.json();
       
       if (result.success) {
+        setRecruiterRemarks('');
         onSaveSuccess && onSaveSuccess(result.data);
         onClose();
       } else {
@@ -485,10 +493,10 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                             <span className="text-gray-400 font-medium">(Optional)</span>
                           )}
                         </label>
-                        <textarea
+                         <textarea
                           rows="4"
-                          value={match.human_notes || ''}
-                          onChange={(e) => setMatch({ ...match, human_notes: e.target.value })}
+                          value={recruiterRemarks}
+                          onChange={(e) => setRecruiterRemarks(e.target.value)}
                           className={`mt-1.5 w-full border rounded-md shadow-sm text-sm focus:ring-green-800 focus:border-green-800 transition-all duration-250 ${
                             isJustificationRequired 
                               ? 'border-rose-300 bg-rose-50/15 focus:ring-rose-500 focus:border-rose-500' 
@@ -609,9 +617,9 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                     </button>
                     <button
                       type="submit"
-                      disabled={saving || (isJustificationRequired && !match.human_notes?.trim())}
+                      disabled={saving || (isJustificationRequired && !recruiterRemarks.trim())}
                       className={`px-5 py-2 rounded-md shadow-sm text-sm font-bold text-white transition-colors ${
-                        saving || (isJustificationRequired && !match.human_notes?.trim())
+                        saving || (isJustificationRequired && !recruiterRemarks.trim())
                           ? 'bg-gray-400 cursor-not-allowed'
                           : 'bg-green-700 hover:bg-green-800'
                       }`}

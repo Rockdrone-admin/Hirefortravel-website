@@ -23,6 +23,7 @@ const renderTimeIdentified = (dateStr) => {
   );
 };
 
+
 export default function ProspectsArchive() {
   const [archivedProspects, setArchivedProspects] = useState([]);
   const [activeJobs, setActiveJobs] = useState([]);
@@ -30,26 +31,33 @@ export default function ProspectsArchive() {
   const [restoringId, setRestoringId] = useState(null);
   const [activeMatchId, setActiveMatchId] = useState(null);
 
-  // Filters
+  // Filters & Sorting Config
   const [selectedJobId, setSelectedJobId] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProspects, setSelectedProspects] = useState([]);
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortConfig, setSortConfig] = useState({ key: 'identified', direction: 'desc' });
 
   // Load saved sorting preference on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedSort = localStorage.getItem('hirefortravel_archive_sortBy');
+      const savedSort = localStorage.getItem('hirefortravel_archive_sortConfig');
       if (savedSort) {
-        setSortBy(savedSort);
+        try {
+          setSortConfig(JSON.parse(savedSort));
+        } catch (e) {
+          console.error("Failed to parse saved archive sortConfig", e);
+        }
       }
     }
   }, []);
 
-  const handleSortChange = (value) => {
-    setSortBy(value);
+  const handleSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') direction = 'asc';
+    const newConfig = { key, direction };
+    setSortConfig(newConfig);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('hirefortravel_archive_sortBy', value);
+      localStorage.setItem('hirefortravel_archive_sortConfig', JSON.stringify(newConfig));
     }
   };
 
@@ -57,6 +65,8 @@ export default function ProspectsArchive() {
   const [executingBulk, setExecutingBulk] = useState(false);
   const [bulkReason, setBulkReason] = useState('');
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [editingNotesMatchId, setEditingNotesMatchId] = useState(null);
+  const [tempNotes, setTempNotes] = useState('');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -94,6 +104,26 @@ export default function ProspectsArchive() {
       }
     } catch (err) {
       console.error("Error loading archived prospects:", err);
+    }
+  };
+
+  const handleUpdateNotes = async (matchId, notesText) => {
+    try {
+      const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchUpdates: { human_notes: notesText },
+          changedBy: 'Admin Recruiter',
+          reason: notesText })
+      });
+      const result = await res.json();
+      if (result.success) {
+        setArchivedProspects(prev => prev.map(p => p.id === matchId ? { ...p, human_notes: notesText } : p));
+      } else {
+        alert(result.error || 'Failed to save notes');
+      }
+    } catch (err) {
+      console.error('Failed to update notes:', err);
     }
   };
 
@@ -192,13 +222,21 @@ export default function ProspectsArchive() {
   });
 
   filteredProspects.sort((a, b) => {
-    const scoreA = a.manual_score || a.ai_score || 0;
-    const scoreB = b.manual_score || b.ai_score || 0;
-
-    if (sortBy === 'score_desc') return scoreB - scoreA;
-    if (sortBy === 'score_asc') return scoreA - scoreB;
-    if (sortBy === 'newest') return new Date(b.created_at) - new Date(a.created_at);
-    return 0;
+    let comparison = 0;
+    if (sortConfig.key === 'score') {
+      const scoreA = a.manual_score || a.ai_score || 0;
+      const scoreB = b.manual_score || b.ai_score || 0;
+      comparison = scoreA - scoreB;
+    } else if (sortConfig.key === 'identified') {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      comparison = dateA - dateB;
+    } else if (sortConfig.key === 'name') {
+      const nameA = a.prospect?.name || '';
+      const nameB = b.prospect?.name || '';
+      comparison = nameA.localeCompare(nameB);
+    }
+    return sortConfig.direction === 'asc' ? comparison : -comparison;
   });
 
   return (
@@ -233,16 +271,7 @@ export default function ProspectsArchive() {
             ))}
           </select>
 
-          {/* Sort selection */}
-          <select
-            value={sortBy}
-            onChange={(e) => handleSortChange(e.target.value)}
-            className="text-xs border-gray-250 rounded-md focus:ring-green-700 focus:border-green-700 bg-white pr-8 py-1.5 font-semibold text-gray-600"
-          >
-            <option value="newest">Archived Date: Newest First</option>
-            <option value="score_desc">Score: High to Low</option>
-            <option value="score_asc">Score: Low to High</option>
-          </select>
+          {/* Top dropdown sort removed - replaced by column header clicking */}
 
           {(selectedProspects.length > 0 || searchQuery || selectedJobId !== 'all') && (
             <button 
@@ -360,12 +389,27 @@ export default function ProspectsArchive() {
                       className="rounded text-green-700 border-gray-300"
                     />
                   </th>
-                  <th className="px-4 py-3">Candidate</th>
+                  <th 
+                    className="px-4 py-3 cursor-pointer hover:bg-gray-150 transition-colors" 
+                    onClick={() => handleSort('name')}
+                  >
+                    Candidate {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                  </th>
                   <th className="px-4 py-3">Experience</th>
-                  <th className="px-4 py-3 text-center">Score</th>
-                  <th className="px-4 py-3">Time Archived</th>
+                  <th 
+                    className="px-4 py-3 text-center cursor-pointer hover:bg-gray-150 transition-colors" 
+                    onClick={() => handleSort('score')}
+                  >
+                    Score {sortConfig.key === 'score' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                  </th>
+                  <th 
+                    className="px-4 py-3 cursor-pointer hover:bg-gray-150 transition-colors" 
+                    onClick={() => handleSort('identified')}
+                  >
+                    Time Archived {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                  </th>
                   <th className="px-4 py-3">Contact</th>
-                  <th className="px-4 py-3">Latest Notes / Reason</th>
+                  <th className="px-4 py-3">Latest Remarks</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -475,11 +519,73 @@ export default function ProspectsArchive() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <div className="text-xs text-gray-600 truncate italic" title={matchItem.human_notes || 'No notes added'}>
-                          {matchItem.human_notes || <span className="text-gray-300 italic">No notes provided</span>}
-                        </div>
-                        <div className="text-[10px] text-red-700 font-semibold mt-0.5 flex items-center gap-0.5">
+                      <td className="px-4 py-3 max-w-[280px]">
+                        {editingNotesMatchId === matchItem.id ? (
+                          <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
+                            <textarea 
+                              value={tempNotes} 
+                              onChange={(e) => setTempNotes(e.target.value)}
+                              className="w-full text-[11px] p-1.5 border border-gray-300 rounded focus:ring-green-700 focus:border-green-700 bg-white font-semibold text-gray-700"
+                              rows="2"
+                              placeholder="Enter remarks..."
+                              autoFocus
+                            />
+                            <div className="flex justify-end gap-1.5">
+                              <button 
+                                onClick={() => setEditingNotesMatchId(null)}
+                                className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold text-[9px] hover:bg-gray-200 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                onClick={async () => { 
+                                  await handleUpdateNotes(matchItem.id, tempNotes); 
+                                  setEditingNotesMatchId(null); 
+                                }}
+                                className="px-1.5 py-0.5 bg-green-700 text-white rounded font-bold text-[9px] hover:bg-green-800 transition-colors shadow-sm"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : matchItem.human_notes ? (
+                          <div className="bg-gray-50 border border-gray-200 rounded px-2.5 py-2 text-gray-700 w-full group/notes relative shadow-sm" onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setEditingNotesMatchId(matchItem.id); 
+                                setTempNotes(''); 
+                              }}
+                              className="absolute right-2 top-2 text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse z-10"
+                              title="Add Remark"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            </button>
+                            <p className="text-[11px] font-semibold leading-relaxed text-gray-800 whitespace-pre-wrap pr-6">
+                              {matchItem.human_notes}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50/50 border border-gray-150 rounded px-2.5 py-1.5 text-gray-400 w-full group/notes relative" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-end mb-1">
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setEditingNotesMatchId(matchItem.id); 
+                                  setTempNotes(''); 
+                                }}
+                                className="text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse"
+                                title="Add Remark"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                              </button>
+                            </div>
+                            <p className="text-[10px] italic leading-normal pl-0.5">
+                              No remarks
+                            </p>
+                          </div>
+                        )}
+                        <div className="text-[9px] text-red-700 font-semibold mt-1.5 flex items-center gap-0.5 pl-0.5 uppercase tracking-wider">
                           <span className="w-1.5 h-1.5 bg-red-600 rounded-full inline-block" />
                           {!matchItem.active_flag ? 'Inactive' : matchItem.stage}
                         </div>

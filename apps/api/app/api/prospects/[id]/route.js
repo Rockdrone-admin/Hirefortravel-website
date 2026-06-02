@@ -120,7 +120,7 @@ export async function PATCH(req, { params }) {
 
             // Log transition timestamps inside lifecycle_timestamps if stage changes
             if (field === 'stage') {
-              const currentTimestamps = currentMatch.lifecycle_timestamps || {};
+              const currentTimestamps = { ...(currentMatch.lifecycle_timestamps || {}) };
               currentTimestamps[matchUpdates.stage] = new Date().toISOString();
               mFieldsToUpdate.lifecycle_timestamps = currentTimestamps;
             }
@@ -166,12 +166,17 @@ export async function PATCH(req, { params }) {
     // 5. WRITE TO UNIFIED GLOBAL EVENT STORE (activity_events)
     if (auditLogs.length > 0) {
       let logType = 'UPDATE_CANDIDATE';
-      let logTitle = `Updated overrides/details for candidate ${currentProspect.name || 'Profile'}`;
+      let logTitle = `Updated profile for candidate ${currentProspect.name || 'Profile'}`;
 
       const stageChange = auditLogs.find(log => log.metadata?.field === 'stage');
+      const onlyNotesChange = auditLogs.every(log => log.metadata?.field === 'human_notes');
+
       if (stageChange) {
         logType = 'CHANGE_STAGE';
-        logTitle = `Changed stage to ${stageChange.new_value} for ${currentProspect.name || 'Candidate'}`;
+        logTitle = `Changed pipeline stage from ${stageChange.previous_value} to ${stageChange.new_value} for candidate ${currentProspect.name || 'Candidate'}`;
+      } else if (onlyNotesChange) {
+        logType = 'ADD_NOTE';
+        logTitle = `Added recruiter remarks for candidate ${currentProspect.name || 'Candidate'}`;
       }
 
       await logActivityEvent({
@@ -183,6 +188,7 @@ export async function PATCH(req, { params }) {
         description: reason || null,
         metadata: {
           job_id: jobId,
+          candidate_name: currentProspect.name,
           changes: auditLogs.map(l => ({
             field: l.metadata?.field,
             prev: l.previous_value,

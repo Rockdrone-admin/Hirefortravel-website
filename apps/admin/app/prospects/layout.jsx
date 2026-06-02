@@ -1,7 +1,6 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import ActivityTimeline from '../../components/ActivityTimeline';
 
 export default function ProspectsLayout({ children }) {
   const pathname = usePathname();
@@ -50,10 +49,6 @@ export default function ProspectsLayout({ children }) {
       <main className="min-h-[500px]">
         {children}
       </main>
-
-      <div className="mt-12 pt-8 border-t border-gray-200">
-        <ActivityTimeline title="Prospects & Sourcing Activity" entityType="PROSPECT" limit={20} />
-      </div>
     </div>
   );
 }

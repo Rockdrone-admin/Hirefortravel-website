@@ -182,25 +182,32 @@ export default function AISourcingPage() {
   const [prospectsLoading, setProspectsLoading] = useState(true);
   const [selectedProspects, setSelectedProspects] = useState([]);
 
-  // Filters & Sorting
+  // Filters & Sorting Config
   const [minScore, setMinScore] = useState(0);
   const [filterJobId, setFilterJobId] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortConfig, setSortConfig] = useState({ key: 'identified', direction: 'desc' });
 
   // Load saved sorting preference on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedSort = localStorage.getItem('hirefortravel_sourcing_sortBy');
+      const savedSort = localStorage.getItem('hirefortravel_sourcing_sortConfig');
       if (savedSort) {
-        setSortBy(savedSort);
+        try {
+          setSortConfig(JSON.parse(savedSort));
+        } catch (e) {
+          console.error("Failed to parse saved sourcing sortConfig", e);
+        }
       }
     }
   }, []);
 
-  const handleSortChange = (value) => {
-    setSortBy(value);
+  const handleSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') direction = 'asc';
+    const newConfig = { key, direction };
+    setSortConfig(newConfig);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('hirefortravel_sourcing_sortBy', value);
+      localStorage.setItem('hirefortravel_sourcing_sortConfig', JSON.stringify(newConfig));
     }
   };
 
@@ -400,7 +407,7 @@ export default function AISourcingPage() {
         body: JSON.stringify({
           matchUpdates,
           changedBy: 'Admin Recruiter',
-          reason: reasonText || `Moved to ${newStage} from Sourcing dashboard`, credentials: 'include' })
+          reason: reasonText || null, credentials: 'include' })
       });
       const result = await res.json();
       if (result.success) {
@@ -430,8 +437,8 @@ export default function AISourcingPage() {
           body: JSON.stringify({
             matchUpdates: { stage: newStage },
             changedBy: 'Admin Recruiter',
-            reason: `Bulk move to ${newStage} from AI Sourcing dashboard`, credentials: 'include' })
-        })
+            reason: null, credentials: 'include' })
+          })
       );
       await Promise.all(promises);
       
@@ -452,13 +459,21 @@ export default function AISourcingPage() {
   });
 
   filteredProspects.sort((a, b) => {
-    const scoreA = a.manual_score || a.ai_score || 0;
-    const scoreB = b.manual_score || b.ai_score || 0;
-
-    if (sortBy === 'score_desc') return scoreB - scoreA;
-    if (sortBy === 'score_asc') return scoreA - scoreB;
-    if (sortBy === 'newest') return new Date(b.created_at) - new Date(a.created_at);
-    return 0;
+    let comparison = 0;
+    if (sortConfig.key === 'score') {
+      const scoreA = a.manual_score || a.ai_score || 0;
+      const scoreB = b.manual_score || b.ai_score || 0;
+      comparison = scoreA - scoreB;
+    } else if (sortConfig.key === 'identified') {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      comparison = dateA - dateB;
+    } else if (sortConfig.key === 'name') {
+      const nameA = a.prospect?.name || '';
+      const nameB = b.prospect?.name || '';
+      comparison = nameA.localeCompare(nameB);
+    }
+    return sortConfig.direction === 'asc' ? comparison : -comparison;
   });
 
   return (
@@ -694,15 +709,7 @@ export default function AISourcingPage() {
               ))}
             </select>
 
-            <select
-              value={sortBy}
-              onChange={(e) => handleSortChange(e.target.value)}
-              className="text-xs border-gray-200 rounded-md focus:ring-green-700 focus:border-green-700 bg-white pr-8 py-1.5 font-semibold text-gray-600"
-            >
-              <option value="newest">Newest First</option>
-              <option value="score_desc">Score: High to Low</option>
-              <option value="score_asc">Score: Low to High</option>
-            </select>
+            {/* Top dropdown sort removed - replaced by column header clicking */}
           </div>
         </div>
 
@@ -726,7 +733,7 @@ export default function AISourcingPage() {
                 onClick={() => handleBulkAction('MATCHED')}
                 className="px-3 py-1 bg-green-700 text-white rounded hover:bg-green-800 transition-colors shadow-sm"
               >
-                Bulk Match to CRM
+                Bulk Match
               </button>
               <button
                 type="button"
@@ -768,10 +775,25 @@ export default function AISourcingPage() {
                       className="rounded text-green-700 focus:ring-green-700 border-gray-300 h-4 w-4"
                     />
                   </th>
-                  <th className="p-4">Candidate / Matched Job</th>
+                  <th 
+                    className="p-4 cursor-pointer hover:bg-gray-100 transition-colors" 
+                    onClick={() => handleSort('name')}
+                  >
+                    Candidate / Matched Job {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                  </th>
                   <th className="p-4">Current Background</th>
-                  <th className="p-4 text-center">Match Score</th>
-                  <th className="p-4">Date Identified</th>
+                  <th 
+                    className="p-4 text-center cursor-pointer hover:bg-gray-100 transition-colors" 
+                    onClick={() => handleSort('score')}
+                  >
+                    Match Score {sortConfig.key === 'score' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                  </th>
+                  <th 
+                    className="p-4 cursor-pointer hover:bg-gray-100 transition-colors" 
+                    onClick={() => handleSort('identified')}
+                  >
+                    Date Identified {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                  </th>
                   <th className="p-4">Contact Info</th>
                   <th className="p-4 text-right">Outreach Actions</th>
                 </tr>
@@ -876,7 +898,7 @@ export default function AISourcingPage() {
                             onClick={() => triggerStageTransition(matchItem.id, 'MATCHED', prospect.name)}
                             className="px-2.5 py-1 bg-green-700 text-white rounded text-xs font-bold hover:bg-green-800 shadow-sm transition-colors"
                           >
-                            Match to CRM
+                            Match
                           </button>
                           <button
                             onClick={() => triggerStageTransition(matchItem.id, 'ARCHIVED', prospect.name)}
@@ -942,7 +964,7 @@ export default function AISourcingPage() {
                   }}
                   className="px-4 py-1.5 bg-green-700 text-white rounded font-bold hover:bg-green-800 transition-colors shadow-sm"
                 >
-                  {transitionDetails.newStage === 'MATCHED' ? 'Match to CRM' : 'Archive Lead'}
+                  {transitionDetails.newStage === 'MATCHED' ? 'Match' : 'Archive Lead'}
                 </button>
               </div>
             </div>

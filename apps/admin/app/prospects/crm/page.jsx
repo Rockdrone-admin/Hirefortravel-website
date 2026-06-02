@@ -174,7 +174,7 @@ export default function ProspectsCRMBoard() {
         body: JSON.stringify({
           matchUpdates,
           changedBy: 'Admin Recruiter',
-          reason: reasonText || `Moved to ${newStage}`, credentials: 'include' })
+          reason: reasonText || null, credentials: 'include' })
       });
       const result = await res.json();
       if (result.success) {
@@ -200,7 +200,7 @@ export default function ProspectsCRMBoard() {
         body: JSON.stringify({
           matchUpdates: { human_notes: notesText },
           changedBy: 'Admin Recruiter',
-          reason: 'Updated candidate notes from CRM table inline editor', credentials: 'include' })
+          reason: notesText, credentials: 'include' })
       });
       const result = await res.json();
       if (result.success) {
@@ -594,7 +594,7 @@ export default function ProspectsCRMBoard() {
                   <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('identified')}>Time Sourced {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                   <th className="px-4 py-3">Contact</th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('duration')}>In Stage {sortConfig.key === 'duration' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3">Remarks / Outreach Draft</th>
+                  <th className="px-4 py-3">Latest Remarks</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -699,7 +699,7 @@ export default function ProspectsCRMBoard() {
                       </td>
                       <td className="px-4 py-3 max-w-[280px]">
                         {editingNotesMatchId === matchItem.id ? (
-                          <div className="flex flex-col gap-1.5 max-w-[260px]" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
                             <textarea 
                               value={tempNotes} 
                               onChange={(e) => setTempNotes(e.target.value)}
@@ -727,22 +727,24 @@ export default function ProspectsCRMBoard() {
                             </div>
                           </div>
                         ) : matchItem.human_notes ? (
-                          <div className="text-gray-700 leading-relaxed font-semibold group/notes relative pr-6">
-                            {matchItem.human_notes}
+                          <div className="bg-gray-50 border border-gray-200 rounded px-2.5 py-2 text-gray-700 w-full group/notes relative shadow-sm">
                             <button 
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 setEditingNotesMatchId(matchItem.id); 
-                                setTempNotes(matchItem.human_notes || ''); 
+                                setTempNotes(''); 
                               }}
-                              className="absolute right-0 top-0 text-gray-400 hover:text-green-700 transition-colors p-0.5 rounded opacity-0 group-hover/notes:opacity-100"
-                              title="Edit Remark"
+                              className="absolute right-2 top-2 text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse z-10"
+                              title="Add Remark"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                             </button>
+                            <p className="text-[11px] font-semibold leading-relaxed text-gray-800 whitespace-pre-wrap pr-6">
+                              {matchItem.human_notes}
+                            </p>
                           </div>
                         ) : (
-                          <div className="bg-green-50/40 border border-green-100/60 rounded px-2 py-1.5 text-green-700 max-w-[260px] group/notes relative">
+                          <div className="bg-green-50/40 border border-green-100/60 rounded px-2 py-1.5 text-green-700 w-full group/notes relative">
                             <div className="flex items-center justify-between gap-1 mb-0.5">
                               <span className="text-[9px] font-black uppercase tracking-wider text-green-800">Auto Outreach Draft</span>
                               <div className="flex items-center gap-1">
@@ -775,7 +777,7 @@ export default function ProspectsCRMBoard() {
                               style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                               title={getOutreachDraft(prospect, job)}
                             >
-                              "{getOutreachDraft(prospect, job)}"
+                              {getOutreachDraft(prospect, job)}
                             </p>
                           </div>
                         )}

@@ -251,14 +251,40 @@ export async function POST(req) {
               })
               .eq('id', run.id);
 
+            // Fetch the completed run's final details (including total_discovered count)
+            const { data: finalRun } = await supabase
+              .from('sourcing_runs')
+              .select('total_discovered')
+              .eq('id', run.id)
+              .single();
+
+            const candidatesCount = finalRun ? finalRun.total_discovered : 0;
+
+            let highScoringCount = 0;
+            try {
+              const { data: strats } = await supabase
+                .from('sourcing_strategies')
+                .select('high_score_count')
+                .eq('run_id', run.id);
+              if (strats) {
+                highScoringCount = strats.reduce((sum, s) => sum + (s.high_score_count || 0), 0);
+              }
+            } catch (e) {
+              console.warn('Failed to query sourcing_strategies for completed count:', e);
+            }
+
             // Log Sourcing Completed Event
             await logActivityEvent({
               user: authUser,
               event_type: 'SOURCING_COMPLETED',
               entity_type: 'SOURCING_RUN',
               entity_id: run.id,
-              title: `AI Sourcing completed`,
-              metadata: { job_ids: positionIds },
+              title: `AI Sourcing Completed: Sourced ${candidatesCount} candidates`,
+              metadata: { 
+                job_ids: positionIds, 
+                candidates_sourced: candidatesCount,
+                high_scoring_sourced: highScoringCount
+              },
               environment
             });
           }

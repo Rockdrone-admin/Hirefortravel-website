@@ -46,6 +46,7 @@ export async function GET(req) {
         tags,
         followup_due_at,
         last_contacted_at,
+        lifecycle_timestamps,
         created_at,
         prospect:prospect_id (
           id,
@@ -264,13 +265,26 @@ export async function POST(req) {
       }]);
 
     // Log Global Activity Event
+    let jobTitle = 'Job Position';
+    try {
+      const { data: jobData } = await supabase
+        .from('jobs')
+        .select('title')
+        .eq('id', jobId)
+        .maybeSingle();
+      if (jobData) jobTitle = jobData.title;
+    } catch (e) {
+      console.warn('Failed to query job title:', e);
+    }
+
     await logActivityEvent({
       user: authUser,
       event_type: 'CANDIDATE_CREATED',
-      entity_type: 'CANDIDATE',
+      entity_type: 'prospect',
       entity_id: prospectId,
-      title: `Mapped candidate ${name} to Job ID ${jobId}`,
-      metadata: { job_id: jobId, stage: stage || 'MATCHED' },
+      title: `Manually added candidate`,
+      description: `Mapped candidate ${name} to Job: ${jobTitle}`,
+      metadata: { job_id: jobId, stage: stage || 'MATCHED', job_title: jobTitle, candidate_name: name },
       environment
     });
 

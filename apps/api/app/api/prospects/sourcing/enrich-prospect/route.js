@@ -234,13 +234,45 @@ export async function POST(req) {
     }
 
     // 4.5 LOG CANDIDATE_MATCHED ACTIVITY
+    let triggeredBy = 'System';
+    let runStartedAt = new Date().toISOString();
+    try {
+      const { data: runEvent } = await supabase
+        .from('activity_events')
+        .select('user_name, created_at')
+        .eq('entity_type', 'SOURCING_RUN')
+        .eq('entity_id', runId)
+        .eq('event_type', 'RUN_AI_SOURCING')
+        .maybeSingle();
+      if (runEvent) {
+        triggeredBy = runEvent.user_name || 'System';
+        runStartedAt = runEvent.created_at || runStartedAt;
+      }
+    } catch (e) {
+      console.warn('Failed to find run trigger event:', e);
+    }
+
+    const formattedTime = new Date(runStartedAt).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
     await logActivityEvent({
       user: 'SYSTEM',
       event_type: 'CANDIDATE_MATCHED',
-      entity_type: 'CANDIDATE',
+      entity_type: 'prospect',
       entity_id: prospectId,
-      title: `AI Matched Candidate ${enrichedData.name} to Job`,
-      metadata: { job_id: jobId, ai_score: evaluation.matchScore },
+      title: `Discovered by AI Sourcing`,
+      description: `Sourced via Sourcing Run triggered by ${triggeredBy} at ${formattedTime} (AI Score: ${evaluation.matchScore}%)`,
+      metadata: { 
+        job_id: jobId, 
+        run_id: runId, 
+        triggered_by: triggeredBy, 
+        sourced_at: runStartedAt, 
+        ai_score: evaluation.matchScore 
+      },
       environment
     });
 
@@ -291,7 +323,7 @@ export async function POST(req) {
     // 6. INCREMENT DISCOVERED COUNT IN SOURCING RUN
     const { data: run } = await supabase
       .from('sourcing_runs')
-      .select('total_discovered, positions_targeted')
+      .select('total_discovered, positions_targeted, status')
       .eq('id', runId)
       .eq('environment', environment)
       .single();
@@ -310,6 +342,55 @@ export async function POST(req) {
         })
         .eq('id', runId)
         .eq('environment', environment);
+
+      // Log completion if transitioning to completed
+      if (nextStatus === 'completed' && run.status === 'running') {
+        let triggeredBy = 'System';
+        try {
+          const { data: runEvent } = await supabase
+            .from('activity_events')
+            .select('user_name')
+            .eq('entity_type', 'SOURCING_RUN')
+            .eq('entity_id', runId)
+            .eq('event_type', 'RUN_AI_SOURCING')
+            .maybeSingle();
+          if (runEvent) {
+            triggeredBy = runEvent.user_name || 'System';
+          }
+        } catch (e) {
+          console.warn('Failed to find run trigger event for completion:', e);
+        }
+
+        let highScoringCount = 0;
+        try {
+          const { data: strats } = await supabase
+            .from('sourcing_strategies')
+            .select('high_score_count')
+            .eq('run_id', runId);
+          if (strats) {
+            highScoringCount = strats.reduce((sum, s) => sum + (s.high_score_count || 0), 0);
+          }
+        } catch (e) {
+          console.warn('Failed to query sourcing_strategies for completed count:', e);
+        }
+
+        const positionIds = run.positions_targeted || [];
+        const mockAuthUser = { username: triggeredBy, role: 'RECRUITER' };
+
+        await logActivityEvent({
+          user: mockAuthUser,
+          event_type: 'SOURCING_COMPLETED',
+          entity_type: 'SOURCING_RUN',
+          entity_id: runId,
+          title: `AI Sourcing Completed: Sourced ${nextCount} candidates`,
+          metadata: { 
+            job_ids: positionIds, 
+            candidates_sourced: nextCount,
+            high_scoring_sourced: highScoringCount
+          },
+          environment
+        });
+      }
     }
 
     console.log(`[Sourcing Saga: CRM] ✅ Successfully finished pipeline for candidate "${enrichedData.name}"! AI score: ${evaluation.matchScore} / 100`);

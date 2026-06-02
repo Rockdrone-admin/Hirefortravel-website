@@ -24,6 +24,9 @@ export async function GET(req) {
 
     if (entity_type) {
       query = query.eq('entity_type', entity_type);
+    } else {
+      // Global View: exclude individual candidate matching noise
+      query = query.not('event_type', 'eq', 'CANDIDATE_MATCHED');
     }
     
     if (entity_id) {
