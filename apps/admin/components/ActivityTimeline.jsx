@@ -192,7 +192,12 @@ export default function ActivityTimeline({
       owner: 'Assigned Owner',
       tags: 'Tags',
       followup_due_at: 'Follow-up Date',
-      last_contacted_at: 'Last Contacted Date'
+      last_contacted_at: 'Last Contacted Date',
+      username: 'Username',
+      role: 'User Role',
+      is_active: 'Account Status',
+      must_reset_password: 'Password Reset Required',
+      password: 'Password'
     };
 
     // 1. Render visual field changes

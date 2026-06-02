@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
-import UserModal from '../../../components/UserModal';
-import ActivityTimeline from '../../../components/ActivityTimeline';
+import UserModal from '../../../../components/UserModal';
+import ActivityTimeline from '../../../../components/ActivityTimeline';
 import { logCritical } from '@repo/logger';
 
 export default function UsersManager() {
@@ -57,6 +57,28 @@ export default function UsersManager() {
       }
     } catch (err) {
       console.error("Error toggling status:", err);
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    const confirmed = window.confirm(`Are you absolutely sure you want to permanently delete user "${user.username}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users?id=${user.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        alert(result.message || 'User successfully deleted.');
+        fetchUsers();
+      } else {
+        alert(`Error deleting user: ` + result.error);
+      }
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      alert("Failed to delete user. Check console for details.");
     }
   };
 
@@ -160,6 +182,14 @@ export default function UsersManager() {
                       >
                         Edit / Reset Password
                       </button>
+                      {!user.is_active && (
+                        <button 
+                          onClick={() => handleDeleteUser(user)}
+                          className="text-red-600 hover:text-red-800 font-medium text-sm border-l pl-3 border-gray-200"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import ActivityTimeline from '../../../components/ActivityTimeline';
+import ActivityTimeline from '../../../../components/ActivityTimeline';
 import { logCritical } from '@repo/logger';
 
 export default function RolesManager() {

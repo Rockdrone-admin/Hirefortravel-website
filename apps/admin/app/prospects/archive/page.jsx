@@ -409,7 +409,7 @@ export default function ProspectsArchive() {
                     Time Archived {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
                   </th>
                   <th className="px-4 py-3">Contact</th>
-                  <th className="px-4 py-3">Latest Remarks</th>
+                  <th className="px-4 py-3 w-[280px] min-w-[280px]">Latest Remarks</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -519,7 +519,7 @@ export default function ProspectsArchive() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 max-w-[280px]">
+                      <td className="px-4 py-3 w-[280px] min-w-[280px] max-w-[280px]">
                         {editingNotesMatchId === matchItem.id ? (
                           <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
                             <textarea 
@@ -566,21 +566,19 @@ export default function ProspectsArchive() {
                             </p>
                           </div>
                         ) : (
-                          <div className="bg-gray-50/50 border border-gray-150 rounded px-2.5 py-1.5 text-gray-400 w-full group/notes relative" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-end mb-1">
-                              <button 
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setEditingNotesMatchId(matchItem.id); 
-                                  setTempNotes(''); 
-                                }}
-                                className="text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse"
-                                title="Add Remark"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                              </button>
-                            </div>
-                            <p className="text-[10px] italic leading-normal pl-0.5">
+                          <div className="bg-gray-50/50 border border-gray-150 rounded px-2.5 py-2 text-gray-400 w-full group/notes relative shadow-xs" onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setEditingNotesMatchId(matchItem.id); 
+                                setTempNotes(''); 
+                              }}
+                              className="absolute right-2 top-2 text-gray-400 hover:text-green-700 p-0.5 rounded hover:bg-gray-200 transition-colors animate-pulse z-10"
+                              title="Add Remark"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            </button>
+                            <p className="text-[11px] italic leading-relaxed pl-0.5 text-gray-400 pr-6">
                               No remarks
                             </p>
                           </div>
@@ -604,7 +602,7 @@ export default function ProspectsArchive() {
                           ) : (
                             <>
                               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                              Restore to CRM
+                              Restore
                             </>
                           )}
                         </button>

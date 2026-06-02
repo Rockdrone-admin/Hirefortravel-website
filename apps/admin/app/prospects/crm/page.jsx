@@ -594,7 +594,7 @@ export default function ProspectsCRMBoard() {
                   <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('identified')}>Time Sourced {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                   <th className="px-4 py-3">Contact</th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('duration')}>In Stage {sortConfig.key === 'duration' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                  <th className="px-4 py-3">Latest Remarks</th>
+                  <th className="px-4 py-3 w-[280px] min-w-[280px]">Latest Remarks</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -697,7 +697,7 @@ export default function ProspectsCRMBoard() {
                       <td className="px-4 py-3 text-gray-500 text-[11px] font-semibold">
                         {getStageDurationString(matchItem)}
                       </td>
-                      <td className="px-4 py-3 max-w-[280px]">
+                      <td className="px-4 py-3 w-[280px] min-w-[280px] max-w-[280px]">
                         {editingNotesMatchId === matchItem.id ? (
                           <div className="flex flex-col gap-1.5 w-full font-semibold text-gray-700" onClick={(e) => e.stopPropagation()}>
                             <textarea 

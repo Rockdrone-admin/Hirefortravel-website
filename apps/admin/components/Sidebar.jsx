@@ -22,16 +22,17 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen, isCollapsed, to
 
   if (pathname === '/login') return null;
 
-  const isActive = (path) => {
-    if (path === '/' && pathname === '/') return true;
-    if (path !== '/' && pathname.startsWith(path)) return true;
-    return false;
-  };
+  const isOverviewActive = pathname === '/';
+  const isJobsActive = pathname.startsWith('/jobs');
+  const isLogosActive = pathname.startsWith('/logos');
+  const isProspectsActive = pathname.startsWith('/prospects') && !pathname.startsWith('/prospects/settings') && !pathname.startsWith('/prospects/ai-settings');
+  const isActivityActive = pathname === '/settings/activity-timeline';
+  const isSettingsActive = (pathname.startsWith('/settings') && pathname !== '/settings/activity-timeline') || pathname.startsWith('/prospects/settings') || pathname.startsWith('/prospects/ai-settings') || pathname.startsWith('/settings/ai-settings');
 
-  const navClasses = (path) => {
+  const getLinkClass = (active) => {
     return `px-3 py-2 rounded-md font-medium transition-colors ${
-      isActive(path) 
-        ? 'bg-green-50 text-green-700' 
+      active 
+        ? 'bg-green-50 text-green-700 font-bold' 
         : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
     }`;
   };
@@ -66,22 +67,12 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen, isCollapsed, to
         </div>
       </div>
       <nav className="flex flex-col gap-2 flex-1">
-        <Link href="/" className={navClasses('/')} onClick={handleNavClick}>Dashboard</Link>
-        <Link href="/jobs" className={navClasses('/jobs')} onClick={handleNavClick}>Jobs Manager</Link>
-        <Link href="/logos" className={navClasses('/logos')} onClick={handleNavClick}>Client Logos</Link>
-        
-        <div className="pt-4 pb-1">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3">AI & Prospects</p>
-        </div>
-        <Link href="/prospects/crm" className={navClasses('/prospects/crm')} onClick={handleNavClick}>Prospects CRM</Link>
-        <Link href="/prospects/sourcing" className={navClasses('/prospects/sourcing')} onClick={handleNavClick}>AI Sourcing</Link>
-
-        <div className="pt-4 pb-1">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3">Settings</p>
-        </div>
-        <Link href="/settings/users" className={navClasses('/settings/users')} onClick={handleNavClick}>Users & Roles</Link>
-        <Link href="/settings/roles" className={navClasses('/settings/roles')} onClick={handleNavClick}>Role Permissions</Link>
-        <Link href="/settings/activity-timeline" className={navClasses('/settings/activity-timeline')} onClick={handleNavClick}>Activity Timeline</Link>
+        <Link href="/" className={getLinkClass(isOverviewActive)} onClick={handleNavClick}>Dashboard</Link>
+        <Link href="/jobs" className={getLinkClass(isJobsActive)} onClick={handleNavClick}>Jobs</Link>
+        <Link href="/logos" className={getLinkClass(isLogosActive)} onClick={handleNavClick}>Companies</Link>
+        <Link href="/prospects/sourcing" className={getLinkClass(isProspectsActive)} onClick={handleNavClick}>Prospects</Link>
+        <Link href="/settings/activity-timeline" className={getLinkClass(isActivityActive)} onClick={handleNavClick}>Activity</Link>
+        <Link href="/settings/users" className={getLinkClass(isSettingsActive)} onClick={handleNavClick}>Settings</Link>
       </nav>
       <div className="border-t border-gray-100 pt-4">
         <button 
