@@ -107,7 +107,8 @@ export default function AISettingsPage() {
         },
         body: JSON.stringify({
           promptType: type,
-          instructions: instructionsList.filter(inst => inst.trim() !== ''), credentials: 'include' })
+          instructions: instructionsList.filter(inst => inst.trim() !== '')
+        })
       });
       const result = await res.json();
       if (result.success) {

@@ -60,7 +60,8 @@ export default function AISourcingPage() {
           id: inspectionJob.id,
           real_company_name: inspectionFormData.real_company_name || '',
           competitors: competitorsArr,
-          alternative_titles: altTitlesArr, credentials: 'include' })
+          alternative_titles: altTitlesArr
+        })
       });
 
       const result = await res.json();
@@ -366,7 +367,7 @@ export default function AISourcingPage() {
       
       const res = await fetch(`${API_URL}/api/prospects/sourcing/run?local=${isLocal}`, { credentials: 'include',  method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positionIds: selectedJobs, credentials: 'include' })
+        body: JSON.stringify({ positionIds: selectedJobs })
       });
       const result = await res.json();
 
@@ -405,7 +406,8 @@ export default function AISourcingPage() {
         body: JSON.stringify({
           matchUpdates,
           changedBy: 'Admin Recruiter',
-          reason: reasonText || null, credentials: 'include' })
+          reason: reasonText || null
+        })
       });
       const result = await res.json();
       if (result.success) {
@@ -435,8 +437,9 @@ export default function AISourcingPage() {
           body: JSON.stringify({
             matchUpdates: { stage: newStage },
             changedBy: 'Admin Recruiter',
-            reason: null, credentials: 'include' })
+            reason: null
           })
+        })
       );
       await Promise.all(promises);
       

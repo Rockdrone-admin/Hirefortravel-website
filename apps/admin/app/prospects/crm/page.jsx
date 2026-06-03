@@ -174,7 +174,8 @@ export default function ProspectsCRMBoard() {
         body: JSON.stringify({
           matchUpdates,
           changedBy: 'Admin Recruiter',
-          reason: reasonText || null, credentials: 'include' })
+          reason: reasonText || null
+        })
       });
       const result = await res.json();
       if (result.success) {
@@ -200,7 +201,8 @@ export default function ProspectsCRMBoard() {
         body: JSON.stringify({
           matchUpdates: { human_notes: notesText },
           changedBy: 'Admin Recruiter',
-          reason: notesText, credentials: 'include' })
+          reason: notesText
+        })
       });
       const result = await res.json();
       if (result.success) {
@@ -275,7 +277,8 @@ export default function ProspectsCRMBoard() {
           body: JSON.stringify({
             matchUpdates: finalMatchUpdates,
             changedBy: 'Admin Recruiter',
-            reason: `Bulk action [${bulkAction}] update: ${bulkReason}`, credentials: 'include' })
+            reason: `Bulk action [${bulkAction}] update: ${bulkReason}`
+          })
         });
       });
 

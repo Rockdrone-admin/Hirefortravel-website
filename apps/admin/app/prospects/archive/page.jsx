@@ -146,7 +146,8 @@ export default function ProspectsArchive() {
             active_flag: true 
           },
           changedBy: 'Admin Recruiter',
-          reason: reasonText, credentials: 'include' })
+          reason: reasonText
+        })
       });
       const result = await res.json();
       if (result.success) {
@@ -184,7 +185,8 @@ export default function ProspectsArchive() {
               active_flag: true 
             },
             changedBy: 'Admin Recruiter',
-            reason: `Bulk pipeline retraction: ${bulkReason}`, credentials: 'include' })
+            reason: `Bulk pipeline retraction: ${bulkReason}`
+          })
         })
       );
 
