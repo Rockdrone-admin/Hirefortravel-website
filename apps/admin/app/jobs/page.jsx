@@ -22,7 +22,7 @@ export default function JobsManager() {
     try {
       setLoading(true);
       const statusQuery = activeTab === 'active' ? 'active,inactive' : activeTab;
-      const response = await fetch(`${API_URL}/api/jobs?status=${statusQuery}`, { credentials: 'include',  cache: 'no-store' });
+      const response = await fetch(`${API_URL}/api/jobs?status=${statusQuery}&admin=true`, { credentials: 'include',  cache: 'no-store' });
       const result = await response.json();
       if (result.success) {
         setJobs(result.data);
