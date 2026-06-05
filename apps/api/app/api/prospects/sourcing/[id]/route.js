@@ -167,7 +167,7 @@ export async function PATCH(req, { params }) {
 
       if (stageChange) {
         logType = 'CHANGE_STAGE';
-        logTitle = `Changed pipeline stage from ${stageChange.previous_value} to ${stageChange.new_value} for candidate ${currentProspect.name || 'Candidate'}`;
+        logTitle = `Updated pipeline status for candidate ${currentProspect.name || 'Candidate'}`;
       } else if (onlyNotesChange) {
         logType = 'ADD_NOTE';
         logTitle = `Added recruiter remarks for candidate ${currentProspect.name || 'Candidate'}`;

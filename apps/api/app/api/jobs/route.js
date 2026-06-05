@@ -117,6 +117,18 @@ export async function PATCH(req) {
       return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
+    // Fetch the current record first to perform field comparisons for activity events
+    const { data: currentJob, error: fetchErr } = await supabase
+      .from('jobs')
+      .select('*')
+      .eq('id', numericId)
+      .eq('environment', environment)
+      .single();
+
+    if (fetchErr || !currentJob) {
+      return NextResponse.json({ success: false, error: 'Job not found' }, { status: 404, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
     const { data, error } = await supabase
       .from('jobs')
       .update(updates)
@@ -135,16 +147,30 @@ export async function PATCH(req) {
 
     // Log Activity
     if (data && data[0]) {
-      const keysUpdated = Object.keys(updates);
-      await logActivityEvent({
-        user: authUser,
-        event_type: 'JOB_UPDATED',
-        entity_type: 'JOB',
-        entity_id: data[0].id,
-        title: `Updated job position: ${data[0].title}`,
-        metadata: { updates: keysUpdated },
-        environment
-      });
+      const changes = [];
+      for (const [key, val] of Object.entries(updates)) {
+        const currentVal = currentJob[key];
+        const hasChanged = String(currentVal ?? '') !== String(val ?? '');
+        if (hasChanged) {
+          changes.push({
+            field: key,
+            prev: currentVal === null || currentVal === undefined ? '' : String(currentVal),
+            next: val === null || val === undefined ? '' : String(val)
+          });
+        }
+      }
+
+      if (changes.length > 0) {
+        await logActivityEvent({
+          user: authUser,
+          event_type: 'JOB_UPDATED',
+          entity_type: 'JOB',
+          entity_id: data[0].id,
+          title: `Updated job position: ${data[0].title}`,
+          metadata: { changes },
+          environment
+        });
+      }
     }
 
     return NextResponse.json({ success: true, data }, { headers: getCorsHeaders(req.headers.get('origin')) });

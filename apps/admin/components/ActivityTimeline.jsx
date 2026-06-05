@@ -19,6 +19,14 @@ const STAGE_NAME_MAP = {
 const formatDisplayString = (str) => {
   if (!str) return str;
   let formatted = str;
+  
+  // 1. Transform historical stage change titles to be clean and non-redundant
+  const titleRegex = /^Changed pipeline stage from .* to .* for candidate (.*)$/i;
+  const match = formatted.match(titleRegex);
+  if (match) {
+    return `Updated pipeline status for candidate ${match[1]}`;
+  }
+
   const stages = [
     'MATCHED', 'CONTACTED', 'FOLLOWUP', 'INTERESTED', 'APPLIED', 
     'IDENTIFIED', 'RESPONDED', 'NOT INTERESTED', 'NO RESPONSE', 
@@ -382,10 +390,26 @@ export default function ActivityTimeline({
       can_access_companies: 'Companies Access',
       can_access_prospects: 'Prospects Access',
       can_access_activity: 'Activity Access',
-      can_access_settings: 'Settings Access'
+      can_access_settings: 'Settings Access',
+      title: 'Job Title',
+      company_name: 'Company Name',
+      location: 'Job Location',
+      experience: 'Experience Requirement',
+      salary: 'Salary',
+      about_role: 'About Role',
+      responsibilities: 'Responsibilities',
+      requirements: 'Requirements',
+      benefits: 'Benefits',
+      real_company_name: 'Client Company Name',
+      competitors: 'Competitors List',
+      alternative_titles: 'Alternative Titles',
+      number_of_openings: 'Number of Openings',
+      notes: 'Job Notes',
+      status: 'Job Status'
     };
 
     let changesNode = null;
+    let historicalUpdatesNode = null;
     let permissionsNode = null;
     let customPropsNode = null;
 
@@ -393,7 +417,6 @@ export default function ActivityTimeline({
     if (metadata.changes && Array.isArray(metadata.changes)) {
       const filteredChanges = metadata.changes.filter(change => {
         if (change.field === 'human_notes') return false;
-        if (change.field === 'stage' && eventType === 'CHANGE_STAGE') return false;
         return true;
       });
       
@@ -402,6 +425,16 @@ export default function ActivityTimeline({
           <div className="mt-2 space-y-1.5 pl-1.5">
             {filteredChanges.map((change, index) => {
               const label = fieldLabels[change.field] || change.field;
+
+              const isLargeField = ['about_role', 'responsibilities', 'requirements', 'benefits', 'notes'].includes(change.field);
+              if (isLargeField) {
+                return (
+                  <div key={index} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                    <span className="w-1 h-1 rounded-full bg-gray-400"></span>
+                    <span className="font-semibold text-gray-705">Changed: {label}</span>
+                  </div>
+                );
+              }
               
               const formatVal = (val, fieldName) => {
                 if (val === 'null' || val === null || val === undefined || val === '') return 'None';
@@ -426,6 +459,31 @@ export default function ActivityTimeline({
                   <span className="line-through text-gray-400 bg-gray-100 px-1 py-0.2 rounded font-mono text-[10.5px]">{prevVal}</span>
                   <span className="text-gray-400 font-bold">&gt;</span>
                   <span className="font-bold text-green-700 bg-green-50 border border-green-100 px-1.5 py-0.2 rounded text-[10.5px]">{nextVal}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+    }
+
+    // 1.5 Render historical job updates if present
+    if (!metadata.changes && metadata.updates) {
+      const updatesList = Array.isArray(metadata.updates) 
+        ? metadata.updates 
+        : (typeof metadata.updates === 'string' ? metadata.updates.split(',').map(s => s.trim()) : []);
+      
+      const filteredUpdates = updatesList.filter(field => field !== 'human_notes');
+      
+      if (filteredUpdates.length > 0) {
+        historicalUpdatesNode = (
+          <div className="mt-2 space-y-1.5 pl-1.5">
+            {filteredUpdates.map((field, index) => {
+              const label = fieldLabels[field] || field;
+              return (
+                <div key={index} className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                  <span className="w-1 h-1 rounded-full bg-gray-400"></span>
+                  <span className="font-semibold text-gray-750">Changed: {label}</span>
                 </div>
               );
             })}
@@ -492,7 +550,8 @@ export default function ActivityTimeline({
     const ignoredKeys = [
       'changes', 'job_id', 'run_id', 'job_ids', 'triggered_by', 'sourced_at', 'candidate_name',
       'ip', 'device', 'user_agent', 'userAgent', 'session_id', 'sessionId',
-      'company_name', 'companyName', 'logo_url', 'logoUrl', 'new_permissions', 'permissions'
+      'company_name', 'companyName', 'logo_url', 'logoUrl', 'new_permissions', 'permissions',
+      'updates'
     ];
     const visibleEntries = Object.entries(metadata).filter(([key]) => !ignoredKeys.includes(key));
 
@@ -532,6 +591,10 @@ export default function ActivityTimeline({
     // Combined rendering
     if (changesNode) {
       return changesNode;
+    }
+
+    if (historicalUpdatesNode) {
+      return historicalUpdatesNode;
     }
 
     if (permissionsNode) {
