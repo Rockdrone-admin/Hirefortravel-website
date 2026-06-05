@@ -164,7 +164,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   // Cross-job calculations for UI warning alert and history timeline
   const otherMatches = (data?.allMatches || []).filter(m => m.id !== matchId);
   const activeMatchWithOtherOwner = otherMatches.find(m => 
-    ['OUTREACH', 'CONTACTED', 'FOLLOWUP', 'RESPONDED', 'INTERESTED', 'APPLIED', 'MATCHED'].includes(m.stage) &&
+    ['OUTREACH', 'CONTACTED', 'FOLLOWUP', 'INTERESTED', 'APPLIED', 'MATCHED'].includes(m.stage) &&
     m.owner && m.owner !== match.owner
   );
 
@@ -394,7 +394,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                           </div>
                         ) : (
                           otherMatches.map((m, idx) => {
-                            const isContactActive = ['OUTREACH', 'CONTACTED', 'FOLLOWUP', 'RESPONDED', 'INTERESTED', 'APPLIED', 'MATCHED'].includes(m.stage);
+                            const isContactActive = ['OUTREACH', 'CONTACTED', 'FOLLOWUP', 'INTERESTED', 'APPLIED', 'MATCHED'].includes(m.stage);
                             const badgeColor = isContactActive 
                               ? 'bg-amber-100 text-amber-800 border border-amber-200/50' 
                               : 'bg-gray-100 text-gray-500 border border-gray-200';
@@ -432,16 +432,15 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                             className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-green-800 focus:border-green-800 text-sm"
                           >
                             <option value="IDENTIFIED">IDENTIFIED</option>
-                            <option value="MATCHED">MATCHED</option>
-                            <option value="CONTACTED">CONTACTED</option>
-                            <option value="RESPONDED">RESPONDED</option>
-                            <option value="FOLLOWUP">FOLLOWUP</option>
+                            <option value="MATCHED">CONNECTION REQUEST</option>
+                            <option value="CONTACTED">OUTREACH SENT</option>
+                            <option value="FOLLOWUP">FOLLOW UP</option>
                             <option value="INTERESTED">INTERESTED</option>
                             <option value="NOT INTERESTED">NOT INTERESTED</option>
                             <option value="NO RESPONSE">NO RESPONSE</option>
                             <option value="APPLIED">APPLIED</option>
                             <option value="REJECTED">REJECTED</option>
-                            <option value="ARCHIVED">ARCHIVED</option>
+                            <option value="ARCHIVED">REQ. NOT ACCEPTED</option>
                           </select>
                         </div>
                         <div>

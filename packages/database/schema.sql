@@ -150,7 +150,14 @@ CREATE TABLE sourcing_runs (
   total_discovered INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  environment app_environment NOT NULL DEFAULT 'development'
+  environment app_environment NOT NULL DEFAULT 'development',
+  
+  -- Progress tracking columns
+  current_phase TEXT,
+  progress_percent INTEGER,
+  total_jobs INTEGER,
+  jobs_completed INTEGER,
+  total_expected_enrichments INTEGER
 );
 
 -- ==========================================

@@ -3,9 +3,8 @@ import { useState, useEffect, useMemo } from 'react';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 
 const ACTIVE_STAGES = [
-  { id: 'MATCHED', name: 'Matched', color: 'slate', icon: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
+  { id: 'MATCHED', name: 'Connection Request', color: 'slate', icon: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
   { id: 'CONTACTED', name: 'Outreach Sent', color: 'blue', icon: 'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z' },
-  { id: 'RESPONDED', name: 'Connected / Responded', color: 'indigo', icon: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' },
   { id: 'FOLLOWUP', name: 'Follow Up', color: 'purple', icon: 'M12 8v4l3 3M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
   { id: 'INTERESTED', name: 'Interested', color: 'emerald', icon: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
   { id: 'APPLIED', name: 'Applied', color: 'amber', icon: 'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3' }

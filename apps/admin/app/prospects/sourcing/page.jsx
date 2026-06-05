@@ -400,6 +400,9 @@ export default function AISourcingPage() {
       if (reasonText) {
         matchUpdates.human_notes = reasonText; // Save matching/archiving remarks in the notes!
       }
+      if (newStage === 'ARCHIVED') {
+        matchUpdates.active_flag = false;
+      }
 
       const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -431,16 +434,20 @@ export default function AISourcingPage() {
     if (!confirm(`Are you sure you want to bulk mark ${selectedProspects.length} candidates as ${newStage}?`)) return;
 
     try {
-      const promises = selectedProspects.map(matchId => 
-        fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
+      const promises = selectedProspects.map(matchId => {
+        const matchUpdates = { stage: newStage };
+        if (newStage === 'ARCHIVED') {
+          matchUpdates.active_flag = false;
+        }
+        return fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            matchUpdates: { stage: newStage },
+            matchUpdates,
             changedBy: 'Admin Recruiter',
             reason: null
           })
-        })
-      );
+        });
+      });
       await Promise.all(promises);
       
       // Update UI state
@@ -1095,7 +1102,7 @@ export default function AISourcingPage() {
               <div className="bg-gray-50 border border-gray-100 p-2.5 rounded-lg">
                 <p className="text-[10px] text-gray-400 font-bold uppercase">Sourcing Action</p>
                 <p className="font-bold text-green-700 mt-0.5">
-                  {transitionDetails.newStage === 'MATCHED' ? 'Promote to CRM (MATCHED Stage)' : 'Archive Sourced Lead'}
+                  {transitionDetails.newStage === 'MATCHED' ? 'Promote to CRM (Connection Request Stage)' : 'Archive Sourced Lead'}
                 </p>
               </div>
               <div>

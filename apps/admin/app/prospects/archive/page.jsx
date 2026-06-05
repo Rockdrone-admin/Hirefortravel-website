@@ -98,8 +98,8 @@ export default function ProspectsArchive() {
       const res = await fetch(`${API_URL}/api/prospects`, { credentials: 'include' });
       const result = await res.json();
       if (result.success && result.data) {
-        // Archived prospects are those with stage = 'ARCHIVED' OR active_flag = false
-        const archived = result.data.filter(item => item.stage === 'ARCHIVED' || item.active_flag === false);
+        // Archived prospects are those with active_flag = false
+        const archived = result.data.filter(item => item.active_flag === false);
         setArchivedProspects(archived);
       }
     } catch (err) {
@@ -154,7 +154,7 @@ export default function ProspectsArchive() {
         // Remove restored candidate from local list
         setArchivedProspects(prev => prev.filter(p => p.id !== matchId));
         setSelectedProspects(prev => prev.filter(id => id !== matchId));
-        alert(`${name} has been successfully restored to MATCHED stage in CRM.`);
+        alert(`${name} has been successfully restored to Connection Request stage in CRM.`);
       } else {
         alert(result.error || 'Failed to restore candidate.');
       }
@@ -191,7 +191,7 @@ export default function ProspectsArchive() {
       );
 
       await Promise.all(promises);
-      alert(`Successfully restored ${selectedProspects.length} prospects to MATCHED stage!`);
+      alert(`Successfully restored ${selectedProspects.length} prospects to Connection Request stage!`);
       
       // Update local UI
       setArchivedProspects(prev => prev.filter(p => !selectedProspects.includes(p.id)));
@@ -624,7 +624,7 @@ export default function ProspectsArchive() {
                           )}
                           <div className="text-[9px] text-red-750 font-semibold mt-1.5 flex items-center gap-0.5 pl-0.5 uppercase tracking-wider">
                             <span className="w-1.5 h-1.5 bg-red-600 rounded-full inline-block" />
-                            {!matchItem.active_flag ? 'Inactive' : matchItem.stage}
+                            {!matchItem.active_flag ? 'Archived' : matchItem.stage}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -830,7 +830,7 @@ export default function ProspectsArchive() {
                       )}
                       <div className="text-[9px] text-red-750 font-semibold mt-2 flex items-center gap-0.5 pl-0.5 uppercase tracking-wider">
                         <span className="w-1.5 h-1.5 bg-red-600 rounded-full inline-block" />
-                        {!matchItem.active_flag ? 'Inactive' : matchItem.stage}
+                        {!matchItem.active_flag ? 'Archived' : matchItem.stage}
                       </div>
                     </div>
 
