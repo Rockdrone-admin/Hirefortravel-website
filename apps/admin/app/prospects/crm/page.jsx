@@ -1316,11 +1316,11 @@ export default function ProspectsCRMBoard() {
                 </svg>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-bold text-emerald-950">Refresh Complete!</p>
+                <p className="text-sm font-bold text-emerald-950">Refresh Triggered!</p>
                 <p className="text-xs text-emerald-700 mt-0.5">
                   {refreshSuccessCount === 1 
-                    ? "Candidate Profile successfully refreshed and analyzed by AI"
-                    : `${refreshSuccessCount} Profiles successfully refreshed and analyzed by AI.`
+                    ? "Candidate profile is being refreshed by AI in the background. The updated details and AI score will reflect shortly."
+                    : `${refreshSuccessCount} Candidate profiles are being refreshed by AI in the background. Their updated details and AI scores will reflect shortly.`
                   }
                 </p>
               </div>

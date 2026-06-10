@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase, getEnvironment } from '../../../../../lib/supabase';
 import { getCorsHeaders } from '../../../../../lib/cors';
 import { requireAuth, logActivityEvent } from '../../../../../lib/auth';
-import { enrichLinkedInProfile } from '../../../../../lib/enrichment/index.js';
-import { scoreAndEvaluateProspect } from '../../../../../lib/gemini';
+import { Client } from '@upstash/qstash';
 
 export async function OPTIONS(req) {
   return NextResponse.json({}, { headers: getCorsHeaders(req.headers.get('origin')) });
@@ -42,151 +41,59 @@ export async function POST(req) {
 
     const scraperChoice = (scraperSetting && scraperSetting.instructions && scraperSetting.instructions[0]) || 'apify';
 
+    const host = req.headers.get('host') || 'localhost:3002';
+    const isLocalHost = host.includes('localhost') || host.includes('127.0.0.1');
+    const { searchParams } = new URL(req.url);
+    const local = searchParams.get('local') === 'true' || isLocalHost;
+
+    const qstashToken = process.env.QSTASH_TOKEN;
+    const qstashUrl = process.env.QSTASH_URL || 'https://qstash-eu-central-1.upstash.io';
+    const qstash = qstashToken ? new Client({ token: qstashToken, baseUrl: qstashUrl }) : null;
+
+    // Use current request headers to construct local/remote callback URL
+    const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+    const apiBaseUrl = `${protocol}://${host}`;
+
     console.log(`[Profile Refresh Saga: Init] 🚀 Bulk refresh triggered for ${matchIds.length} candidate(s) | Environment: ${environment}`);
     console.log(`[Profile Refresh Saga: Init] Selected scraper configuration: "${scraperChoice}"`);
 
-    // Loop through each match ID and process refresh
+    // Loop through each match ID and dispatch background tasks
     for (const matchId of matchIds) {
       const idx = matchIds.indexOf(matchId);
-      console.log(`[Profile Refresh Saga: Init] 👤 Processing candidate refresh ${idx + 1} of ${matchIds.length} | Match ID: ${matchId}`);
-      try {
-        const { data: matchRow, error: matchError } = await supabase
-          .from('prospect_matches')
-          .select('*, prospect:prospect_id(*)')
-          .eq('id', matchId)
-          .eq('environment', environment)
-          .single();
+      const payload = {
+        matchId,
+        reason: reason.trim(),
+        changedBy: changedBy || authUser?.username || 'Admin',
+        authUser,
+        scraperChoice
+      };
 
-        if (matchError || !matchRow) {
-          console.error(`[Profile Refresh Saga: Dedupe] ❌ Match ID ${matchId} not found in database. Skipping.`);
-          continue;
-        }
-
-        const prospectId = matchRow.prospect_id;
-        const currentProspect = matchRow.prospect;
-        console.log(`[Profile Refresh Saga: Dedupe] 👤 Candidate profile found in CRM: "${currentProspect?.name || 'Unknown'}"`);
-
-        if (!currentProspect || !currentProspect.linkedin_url) {
-          console.warn(`[Profile Refresh Saga: Dedupe] ⚠️ Candidate "${currentProspect?.name || 'Unknown'}" lacks LinkedIn URL. Skipping.`);
-          continue;
-        }
-
-        const linkedinUrl = currentProspect.linkedin_url;
-
-        // Scrape
-        const enrichedData = await enrichLinkedInProfile(linkedinUrl, '', scraperChoice, 'Profile Refresh Saga');
-
-        // Update prospects table
-        console.log(`[Profile Refresh Saga: Enrich] 🚀 Updating CRM profile for candidate "${enrichedData.name}" with fresh details.`);
-        const { error: updateError } = await supabase
-          .from('prospects')
-          .update({
-            name: enrichedData.name,
-            email: enrichedData.email || currentProspect.email,
-            phone: enrichedData.phone || currentProspect.phone,
-            city: enrichedData.city,
-            latest_title: enrichedData.latest_title,
-            latest_company: enrichedData.latest_company,
-            total_experience: enrichedData.total_experience || currentProspect.total_experience,
-            enrichment_confidence: enrichedData.enrichment_confidence,
-            raw_enrichment_payload: enrichedData.raw_payload,
-            created_at: new Date().toISOString()
-          })
-          .eq('id', prospectId)
-          .eq('environment', environment);
-
-        if (updateError) {
-          console.error(`[Profile Refresh Saga: Enrich] ❌ Failed to update candidate profile in prospects table for candidate ID ${prospectId}:`, updateError);
-          continue;
-        }
-
-        const { data: allMatches } = await supabase
-          .from('prospect_matches')
-          .select('*, job:job_id(*)')
-          .eq('prospect_id', prospectId)
-          .eq('environment', environment);
-
-        console.log(`[Profile Refresh Saga: CRM] Found ${allMatches?.length || 1} position match(es) associated with candidate "${enrichedData.name}"`);
-
-        const matchesToUpdate = allMatches || [matchRow];
-
-        for (const mRow of matchesToUpdate) {
-          if (!mRow.job) continue;
-
-          console.log(`[Profile Refresh Saga: CRM] Rerunning AI scoring for candidate "${enrichedData.name}" on Job "${mRow.job.title}"`);
-          const evaluation = await scoreAndEvaluateProspect(mRow.job, enrichedData, 'Profile Refresh Saga');
-
-          if (mRow.id === matchId) {
-            await supabase
-              .from('prospects')
-              .update({ functional_field: evaluation.functionalField })
-              .eq('id', prospectId)
-              .eq('environment', environment);
-
-            enrichedData.functional_field = evaluation.functionalField;
-          }
-
-          const currentTimestamps = { ...(mRow.lifecycle_timestamps || {}) };
-          currentTimestamps.ai_score_breakdown = evaluation.factorScores;
-
-          await supabase
-            .from('prospect_matches')
-            .update({
-              ai_score: evaluation.matchScore,
-              ai_reasoning: evaluation.aiReasoning,
-              lifecycle_timestamps: currentTimestamps
-            })
-            .eq('id', mRow.id);
-
-          console.log(`[Profile Refresh Saga: CRM] ✅ Successfully finished pipeline for candidate "${enrichedData.name}" on Job "${mRow.job.title}"! AI score: ${evaluation.matchScore} / 100`);
-        }
-
-        // Log candidate timeline event:
-        // "Charchit refreshed profile for candidate JOURAWAR SINGH" (name is UPPERCASE)
-        const displayCandidateName = enrichedData.name.toUpperCase();
-
-        await logActivityEvent({
-          user: authUser,
-          event_type: 'UPDATE_CANDIDATE_BULK_CHILD',
-          entity_type: 'prospect',
-          entity_id: prospectId,
-          title: `refreshed profile for candidate ${displayCandidateName}`,
-          description: reason.trim(), // User provided remarks only
-          metadata: { 
-            job_id: matchRow.job_id,
-            scraper: scraperChoice
-          },
-          environment
-        });
-
-        // Write to prospect_activities (legacy)
-        await supabase
-          .from('prospect_activities')
-          .insert([{
-            prospect_id: prospectId,
-            job_id: matchRow.job_id,
-            changed_by: changedBy || authUser?.username || 'Admin',
-            activity_type: 'override',
-            previous_value: currentProspect.name,
-            new_value: enrichedData.name,
-            metadata: { field: 'profile_refresh', reason: reason },
-            environment
-          }]);
-
-        console.log(`[Profile Refresh Saga: Init] 👤 Finished processing candidate ${idx + 1} of ${matchIds.length}: "${enrichedData.name}"`);
-
-      } catch (err) {
-        console.error(`[Profile Refresh Saga: Enrich] ❌ Candidate refresh pipeline step failed for match ID ${matchId}:`, err.message);
+      if (local || !qstash) {
+        console.log(`[Profile Refresh Saga: Init] [LocalDev] Dispatching background refresh for Match ID "${matchId}" (${idx + 1}/${matchIds.length})`);
+        
+        // Fire-and-forget fetch to the local worker route
+        fetch(`${apiBaseUrl}/api/prospects/sourcing/bulk-refresh/worker?local=true`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(err => console.error('[Profile Refresh Saga: Init] ❌ Local refresh worker dispatch failed:', err.message));
+      } else {
+        console.log(`[Profile Refresh Saga: Init] [QStash] Publishing refresh task for Match ID "${matchId}" (${idx + 1}/${matchIds.length})`);
+        
+        // Publish background task to QStash
+        await qstash.publishJSON({
+          url: `${apiBaseUrl}/api/prospects/sourcing/bulk-refresh/worker`,
+          body: payload
+        }).catch(err => console.error('[Profile Refresh Saga: Init] ❌ QStash refresh worker dispatch failed:', err.message));
       }
     }
 
-    // Log a single consolidated batch event on the global activity timeline
-    // "Charchit refreshed profiles for 46 prospects"
+    // Log a single consolidated batch event on the global activity timeline immediately
     await logActivityEvent({
       user: authUser,
       event_type: 'UPDATE_CANDIDATE',
       entity_type: 'prospect', // keeps category as Prospects
-      entity_id: null, // this makes it hide from candidate timelines, but show on global timeline
+      entity_id: null, // global timeline only
       title: `refreshed profiles for ${matchIds.length} prospects`,
       description: reason.trim(), // User provided remarks only
       metadata: { 
@@ -195,9 +102,9 @@ export async function POST(req) {
       environment
     });
 
-    console.log(`[Profile Refresh Saga: Init] ✅ Bulk refresh completed successfully for ${matchIds.length} candidate(s).`);
+    console.log(`[Profile Refresh Saga: Init] ✅ Bulk refresh tasks successfully dispatched for ${matchIds.length} candidate(s).`);
 
-    return NextResponse.json({ success: true }, { headers: getCorsHeaders(req.headers.get('origin')) });
+    return NextResponse.json({ success: true, count: matchIds.length }, { headers: getCorsHeaders(req.headers.get('origin')) });
 
   } catch (err) {
     console.error('[Profile Refresh Saga: Init] ❌ Bulk refresh pipeline failed:', err.message, err.stack);
