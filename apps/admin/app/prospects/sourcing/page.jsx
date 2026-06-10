@@ -459,6 +459,35 @@ export default function AISourcingPage() {
     }
   };
 
+  const handleBulkRefresh = async () => {
+    if (selectedProspects.length === 0) return;
+    if (!confirm(`Are you sure you want to refresh the profiles and scores for ${selectedProspects.length} candidates? This will rescrape their details.`)) return;
+
+    try {
+      setProspectsLoading(true);
+      const promises = selectedProspects.map(matchId => {
+        return fetch(`${API_URL}/api/prospects/sourcing/${matchId}/refresh`, { 
+          credentials: 'include',  
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            changedBy: 'Admin Recruiter',
+            reason: 'Bulk profile refresh'
+          })
+        });
+      });
+      await Promise.all(promises);
+      setSelectedProspects([]);
+      alert(`Successfully refreshed ${promises.length} profiles!`);
+      await fetchIdentifiedProspects();
+    } catch (err) {
+      console.error('Bulk refresh failed:', err);
+      alert('Failed to refresh profiles.');
+    } finally {
+      setProspectsLoading(false);
+    }
+  };
+
   // Filter & Sort math
   let filteredProspects = prospects.filter(p => {
     const matchesScore = (p.manual_score || p.ai_score || 0) >= minScore;
@@ -760,6 +789,14 @@ export default function AISourcingPage() {
                 className="px-3 py-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded transition-colors"
               >
                 Deselect All
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkRefresh}
+                className="inline-flex items-center gap-1 px-3 py-1 bg-green-700 text-white rounded hover:bg-green-800 transition-colors shadow-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                Bulk Refresh
               </button>
               <button
                 type="button"

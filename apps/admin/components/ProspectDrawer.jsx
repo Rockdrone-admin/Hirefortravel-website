@@ -14,8 +14,47 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   const [outreachDraft, setOutreachDraft] = useState('');
   const [users, setUsers] = useState([]);
   const [recruiterRemarks, setRecruiterRemarks] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+
+  const handleRefreshProfile = async () => {
+    if (!profile.linkedin_url) {
+      alert("This candidate does not have a LinkedIn URL configured, so they cannot be refreshed.");
+      return;
+    }
+    const confirmRefresh = confirm(`Are you sure you want to refresh this profile? This will scrape fresh details and rerun the AI evaluation.`);
+    if (!confirmRefresh) return;
+
+    try {
+      setRefreshing(true);
+      const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}/refresh`, { 
+        credentials: 'include',  
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changedBy: 'Admin Recruiter',
+          reason: 'Manual profile refresh'
+        })
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        alert("Profile details and AI score refreshed successfully!");
+        setData(result.data);
+        setProfile(result.data.prospect || {});
+        setMatch(result.data);
+        generateOutreachMessage(result.data.prospect || {}, result.data.job || {});
+        onSaveSuccess && onSaveSuccess(result.data);
+      } else {
+        alert(result.error || 'Failed to refresh profile');
+      }
+    } catch (err) {
+      console.error('Error refreshing profile:', err);
+      alert('Error refreshing profile: ' + err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Load admin users list for recruiter owner assignment dropdown
   useEffect(() => {
@@ -606,25 +645,38 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                   </div>
 
                   {/* Actions Footer */}
-                  <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 sm:px-8 flex justify-end gap-3 sticky bottom-0 z-10">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={saving || (isJustificationRequired && !recruiterRemarks.trim())}
-                      className={`px-5 py-2 rounded-md shadow-sm text-sm font-bold text-white transition-colors ${
-                        saving || (isJustificationRequired && !recruiterRemarks.trim())
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-green-700 hover:bg-green-800'
-                      }`}
-                    >
-                      {saving ? 'Saving...' : 'Save & Log Changes'}
-                    </button>
+                  <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 sm:px-8 flex justify-between items-center sticky bottom-0 z-10">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleRefreshProfile}
+                        disabled={refreshing || !profile.linkedin_url}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 border border-green-700 rounded-md shadow-sm text-sm font-bold text-green-800 bg-green-50 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={refreshing ? 'animate-spin' : ''}><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        {refreshing ? 'Refreshing...' : 'Refresh Profile'}
+                      </button>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={saving || (isJustificationRequired && !recruiterRemarks.trim())}
+                        className={`px-5 py-2 rounded-md shadow-sm text-sm font-bold text-white transition-colors ${
+                          saving || (isJustificationRequired && !recruiterRemarks.trim())
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-green-700 hover:bg-green-800'
+                        }`}
+                      >
+                        {saving ? 'Saving...' : 'Save & Log Changes'}
+                      </button>
+                    </div>
                   </div>
                 </form>
               )}

@@ -259,6 +259,27 @@ export default function ProspectsCRMBoard() {
 
     try {
       setExecutingBulk(true);
+
+      if (bulkAction === 'refresh') {
+        const promises = selectedProspects.map(matchId => {
+          return fetch(`${API_URL}/api/prospects/sourcing/${matchId}/refresh`, { 
+            credentials: 'include',  
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              changedBy: 'Admin Recruiter',
+              reason: `Bulk profile refresh: ${bulkReason}`
+            })
+          });
+        });
+        await Promise.all(promises);
+        alert(`Bulk profile refresh complete!`);
+        setSelectedProspects([]);
+        setBulkAction(''); setBulkReason('');
+        setLoading(true); await fetchCRMProspects(); setLoading(false);
+        return;
+      }
+
       const payloadUpdates = {};
       if (bulkAction === 'stage') payloadUpdates.stage = bulkStage;
       if (bulkAction === 'owner') payloadUpdates.owner = bulkOwner;
@@ -554,6 +575,7 @@ export default function ProspectsCRMBoard() {
                 <option value="stage">Update Pipeline Stage</option>
                 <option value="owner">Assign Recruiter</option>
                 <option value="tags">Add Tags</option>
+                <option value="refresh">Refresh Profiles</option>
               </select>
               <button
                 type="button"
@@ -586,6 +608,11 @@ export default function ProspectsCRMBoard() {
                   </select>
                 )}
                 {bulkAction === 'tags' && <input type="text" placeholder="e.g. star, top-tier" value={bulkTags} onChange={(e) => setBulkTags(e.target.value)} className="w-full border-gray-300 rounded text-xs" />}
+                {bulkAction === 'refresh' && (
+                  <div className="text-gray-500 font-bold py-1 bg-gray-50 border border-dashed border-gray-200 rounded px-2.5 text-center">
+                    Rescrape profiles & rerun AI scoring
+                  </div>
+                )}
               </div>
               <div className="md:col-span-1">
                 <input type="text" required placeholder="Justification..." value={bulkReason} onChange={(e) => setBulkReason(e.target.value)} className="w-full border-yellow-300 bg-yellow-50/20 focus:ring-yellow-500 rounded text-xs" />
