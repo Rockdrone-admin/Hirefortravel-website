@@ -23,6 +23,36 @@ function getAiClient() {
   return ai;
 }
 
+/**
+ * Executes a Gemini API call with exponential backoff and jitter if rate limited (429/RESOURCE_EXHAUSTED).
+ */
+async function callGeminiWithRetry(apiCall, maxRetries = 5, initialDelay = 2000) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await apiCall();
+    } catch (err) {
+      attempt++;
+      const isRateLimit = 
+        err.status === 429 || 
+        err.statusCode === 429 || 
+        (err.message && (
+          err.message.includes('429') || 
+          err.message.includes('RESOURCE_EXHAUSTED') ||
+          err.message.includes('Resource exhausted')
+        ));
+        
+      if (isRateLimit && attempt <= maxRetries) {
+        const delay = initialDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+        console.warn(`[AI Engine: Retry] ⚠️ Gemini rate limit hit (429/RESOURCE_EXHAUSTED). Error: ${err.message || err}. Retrying attempt ${attempt}/${maxRetries} after ${Math.round(delay)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // 1. Text instructions set up for the Search Query Generation AI
 export const DEFAULT_SEARCH_INSTRUCTIONS = [
   "Extract the primary job title/role targeted.",
@@ -153,7 +183,7 @@ export async function parseJobDetailsAndGenerateDorks(job, existingTitles = [], 
     Return your response strictly in the JSON format specified in the schema.
   `;
 
-  const response = await client.models.generateContent({
+  const response = await callGeminiWithRetry(() => client.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: prompt,
     config: {
@@ -177,7 +207,7 @@ export async function parseJobDetailsAndGenerateDorks(job, existingTitles = [], 
         ]
       }
     }
-  });
+  }));
 
   return JSON.parse(response.text);
 }
@@ -287,7 +317,7 @@ export async function scoreAndEvaluateProspect(job, prospect, sagaType = 'Sourci
     Return your response strictly in the JSON format specified in the schema, detailing the scores array containing each factor name and its given grade.
   `;
 
-  const response = await client.models.generateContent({
+  const response = await callGeminiWithRetry(() => client.models.generateContent({
     model: 'gemini-2.5-pro',
     contents: prompt,
     config: {
@@ -312,7 +342,7 @@ export async function scoreAndEvaluateProspect(job, prospect, sagaType = 'Sourci
         required: ['scores', 'aiReasoning', 'functionalField']
       }
     }
-  });
+  }));
 
   const result = JSON.parse(response.text);
 

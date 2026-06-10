@@ -68,22 +68,28 @@ export async function POST(req) {
         scraperChoice
       };
 
+      // Stagger the calls to prevent concurrent rate limits and scraper exhaustion (e.g. Apify 32 actor runs limit)
+      // Spacing out by 1 second naturally caps concurrency at ~20 (each scrape takes ~20s) and distributes Gemini calls.
+      const staggerDelaySeconds = idx * 1; 
+
       if (local || !qstash) {
-        console.log(`[Profile Refresh Saga: Init] [LocalDev] Dispatching background refresh for Match ID "${matchId}" (${idx + 1}/${matchIds.length})`);
+        console.log(`[Profile Refresh Saga: Init] [LocalDev] Scheduling background refresh for Match ID "${matchId}" (${idx + 1}/${matchIds.length}) with stagger delay of ${staggerDelaySeconds}s`);
         
-        // Fire-and-forget fetch to the local worker route
-        fetch(`${apiBaseUrl}/api/prospects/sourcing/bulk-refresh/worker?local=true`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).catch(err => console.error('[Profile Refresh Saga: Init] ❌ Local refresh worker dispatch failed:', err.message));
+        setTimeout(() => {
+          fetch(`${apiBaseUrl}/api/prospects/sourcing/bulk-refresh/worker?local=true`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(err => console.error('[Profile Refresh Saga: Init] ❌ Local refresh worker dispatch failed:', err.message));
+        }, staggerDelaySeconds * 1000);
       } else {
-        console.log(`[Profile Refresh Saga: Init] [QStash] Publishing refresh task for Match ID "${matchId}" (${idx + 1}/${matchIds.length})`);
+        console.log(`[Profile Refresh Saga: Init] [QStash] Scheduling background refresh task for Match ID "${matchId}" (${idx + 1}/${matchIds.length}) with stagger delay of ${staggerDelaySeconds}s`);
         
-        // Publish background task to QStash
+        // Publish background task to QStash with stagger delay
         await qstash.publishJSON({
           url: `${apiBaseUrl}/api/prospects/sourcing/bulk-refresh/worker`,
-          body: payload
+          body: payload,
+          delay: staggerDelaySeconds
         }).catch(err => console.error('[Profile Refresh Saga: Init] ❌ QStash refresh worker dispatch failed:', err.message));
       }
     }

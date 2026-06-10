@@ -243,15 +243,15 @@ export async function POST(req) {
     }
 
     if (finalTargetProfiles.length > 0) {
-      // Process profiles in controlled batches of 2 (concurrency = 2)
-      const concurrencyLimit = 2;
+      // Process profiles in controlled batches of 20 (concurrency = 20)
+      const concurrencyLimit = 20;
       for (let i = 0; i < finalTargetProfiles.length; i += concurrencyLimit) {
         const batch = finalTargetProfiles.slice(i, i + concurrencyLimit);
         console.log(`[Sourcing Saga: Search] Processing enrichment batch ${Math.floor(i / concurrencyLimit) + 1} of ${Math.ceil(finalTargetProfiles.length / concurrencyLimit)}...`);
 
         let batchQualifiedCount = 0;
 
-        const batchPromises = batch.map(async (profile) => {
+        const batchPromises = batch.map(async (profile, batchIdx) => {
           const payload = {
             runId,
             jobId,
@@ -285,11 +285,14 @@ export async function POST(req) {
                 console.error(`[Sourcing Saga: Search] ❌ Enrichment request failed for ${profile.url} (Status ${enrichRes.status})`);
               }
             } else {
-              // Production QStash async publish
-              console.log(`[Sourcing Saga: Search] [QStash] Publishing enrichment task for: ${profile.url}`);
+              // Production QStash async publish with sequential 1-second stagger
+              const globalIdx = i + batchIdx;
+              const staggerDelay = globalIdx * 1;
+              console.log(`[Sourcing Saga: Search] [QStash] Publishing enrichment task for: ${profile.url} with stagger delay of ${staggerDelay}s`);
               await qstash.publishJSON({
                 url: `${apiBaseUrl}/api/prospects/sourcing/enrich-prospect`,
-                body: payload
+                body: payload,
+                delay: staggerDelay
               });
               qualifiedCount += 0.5;
               batchQualifiedCount += 0.5;
@@ -324,10 +327,10 @@ export async function POST(req) {
           }
         }
 
-        // Delay 2.5 seconds between batches to maintain neat, sequential scraper calls and prevent 202 Accepted triggers
+        // Delay 1 second between batches to maintain neat, sequential scraper calls and prevent 202 Accepted triggers
         if (i + concurrencyLimit < finalTargetProfiles.length) {
-          console.log('[Sourcing Saga: Search] Delaying 2.5 seconds before next enrichment batch...');
-          await new Promise(resolve => setTimeout(resolve, 2500));
+          console.log('[Sourcing Saga: Search] Delaying 1 second before next enrichment batch...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
