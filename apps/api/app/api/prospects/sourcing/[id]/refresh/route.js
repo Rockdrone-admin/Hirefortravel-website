@@ -12,17 +12,22 @@ export async function OPTIONS(req) {
 export async function POST(req, { params }) {
   try {
     const environment = getEnvironment();
+    const matchId = params.id;
+    console.log(`[Profile Refresh Saga: Init] 🚀 Profile refresh triggered for Match ID: ${matchId} | Environment: ${environment}`);
     const { user: authUser, error: authError, status: authStatus } = await requireAuth('can_access_prospects');
     if (authError) {
       return NextResponse.json({ success: false, error: authError }, { status: authStatus, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
-    const matchId = params.id;
     const body = await req.json();
     const { changedBy, reason } = body;
 
     if (!matchId) {
       return NextResponse.json({ success: false, error: 'Match ID is required' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    if (!reason || !reason.trim()) {
+      return NextResponse.json({ success: false, error: 'Recruiter remarks are mandatory to refresh profile details' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
     if (!supabase) {
@@ -43,8 +48,10 @@ export async function POST(req, { params }) {
 
     const prospectId = currentMatch.prospect_id;
     const currentProspect = currentMatch.prospect;
+    console.log(`[Profile Refresh Saga: Dedupe] 👤 Candidate profile found in CRM: "${currentProspect?.name || 'Unknown'}"`);
 
     if (!currentProspect || !currentProspect.linkedin_url) {
+      console.warn(`[Profile Refresh Saga: Dedupe] ⚠️ Candidate lacks LinkedIn URL. Cannot refresh.`);
       return NextResponse.json({ success: false, error: 'LinkedIn URL is required to rescrape a candidate profile' }, { status: 400, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
@@ -59,13 +66,15 @@ export async function POST(req, { params }) {
       .maybeSingle();
 
     const scraperChoice = (scraperSetting && scraperSetting.instructions && scraperSetting.instructions[0]) || 'apify';
+    console.log(`[Profile Refresh Saga: Init] Selected scraper configuration: "${scraperChoice}"`);
 
-    console.log(`[Profile Refresh] Rescraping candidate "${currentProspect.name}" via ${scraperChoice} | URL: ${linkedinUrl}`);
+    console.log(`[Profile Refresh Saga: Enrich] 👤 Triggered candidate profile enrichment | URL: ${linkedinUrl} | Scraper: ${scraperChoice}`);
 
     // 3. Rescrape profile using the selected provider
-    const enrichedData = await enrichLinkedInProfile(linkedinUrl, '', scraperChoice);
+    const enrichedData = await enrichLinkedInProfile(linkedinUrl, '', scraperChoice, 'Profile Refresh Saga');
 
     // 4. Update the Prospects table with fresh details
+    console.log(`[Profile Refresh Saga: Enrich] 🚀 Updating CRM profile for candidate "${enrichedData.name}" with fresh details.`);
     const { error: updateError } = await supabase
       .from('prospects')
       .update({
@@ -95,9 +104,7 @@ export async function POST(req, { params }) {
       .eq('prospect_id', prospectId)
       .eq('environment', environment);
 
-    if (allMatchesError || !allMatches) {
-      console.error('[Profile Refresh] Failed to fetch other matches:', allMatchesError);
-    }
+    console.log(`[Profile Refresh Saga: CRM] Found ${allMatches?.length || 1} position match(es) associated with candidate "${enrichedData.name}"`);
 
     // 6. Rerun Gemini scoring for ALL matches of this prospect
     const matchesToUpdate = allMatches || [currentMatch];
@@ -108,8 +115,8 @@ export async function POST(req, { params }) {
         continue;
       }
 
-      console.log(`[Profile Refresh] Rerunning AI scoring for Candidate "${enrichedData.name}" on Job "${matchRow.job.title}"`);
-      const evaluation = await scoreAndEvaluateProspect(matchRow.job, enrichedData);
+      console.log(`[Profile Refresh Saga: CRM] Rerunning AI scoring for candidate "${enrichedData.name}" on Job "${matchRow.job.title}"`);
+      const evaluation = await scoreAndEvaluateProspect(matchRow.job, enrichedData, 'Profile Refresh Saga');
 
       // If this is the current match we are working on, we also update functional_field
       if (matchRow.id === matchId) {
@@ -137,22 +144,26 @@ export async function POST(req, { params }) {
         .eq('id', matchRow.id);
 
       if (matchUpdateErr) {
-        console.error(`[Profile Refresh] Failed to update match scoring for match ID ${matchRow.id}:`, matchUpdateErr);
+        console.error(`[Profile Refresh Saga: CRM] ❌ Failed to update match scoring for match ID ${matchRow.id}:`, matchUpdateErr);
       }
+
+      console.log(`[Profile Refresh Saga: CRM] ✅ Successfully finished pipeline for candidate "${enrichedData.name}" on Job "${matchRow.job.title}"! AI score: ${evaluation.matchScore} / 100`);
     }
 
-    // 7. Log CANDIDATE_REFRESHED activity (shows on global timeline and candidate details)
+    // 7. Log activity to candidate and global timeline:
+    // "Charchit refreshed profile for candidate JOURAWAR SINGH" (name is UPPERCASE)
+    const displayCandidateName = enrichedData.name.toUpperCase();
+    
     await logActivityEvent({
       user: authUser,
       event_type: 'UPDATE_CANDIDATE',
       entity_type: 'prospect',
       entity_id: prospectId,
-      title: `Refreshed candidate profile details`,
-      description: reason || `Completely refreshed profile via ${scraperChoice} and updated AI scoring/reasoning.`,
+      title: `refreshed profile for candidate ${displayCandidateName}`,
+      description: reason.trim(), // Use user remarks only
       metadata: { 
         job_id: currentMatch.job_id,
-        scraper: scraperChoice,
-        changed_by: changedBy || authUser?.username || 'System'
+        scraper: scraperChoice
       },
       environment
     });
@@ -167,9 +178,11 @@ export async function POST(req, { params }) {
         activity_type: 'override',
         previous_value: currentProspect.name,
         new_value: enrichedData.name,
-        metadata: { field: 'profile_refresh', reason: reason || 'Manual refresh' },
+        metadata: { field: 'profile_refresh', reason: reason },
         environment
       }]);
+
+    console.log(`[Profile Refresh Saga: CRM] ✅ Profile refresh pipeline finished successfully for candidate "${enrichedData.name}"`);
 
     // 8. Retrieve and return the updated match state for the current ID
     const { data: updatedMatch } = await supabase
@@ -204,7 +217,7 @@ export async function POST(req, { params }) {
     }, { headers: getCorsHeaders(req.headers.get('origin')) });
 
   } catch (err) {
-    console.error('[Profile Refresh] ❌ Candidate refresh failed:', err.message, err.stack);
+    console.error('[Profile Refresh Saga: Enrich] ❌ Candidate refresh pipeline failed:', err.message, err.stack);
     return NextResponse.json({ success: false, error: 'Internal server error: ' + err.message }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
   }
 }
