@@ -216,6 +216,9 @@ export default function AISourcingPage() {
   // Stage Transition Remarks Modal State
   const [transitionDetails, setTransitionDetails] = useState(null); // { matchId, newStage, candidateName }
   const [actionRemarks, setActionRemarks] = useState('');
+  const [showBulkRefreshModal, setShowBulkRefreshModal] = useState(false);
+  const [bulkRefreshRemarks, setBulkRefreshRemarks] = useState('');
+  const [refreshSuccessCount, setRefreshSuccessCount] = useState(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -459,30 +462,41 @@ export default function AISourcingPage() {
     }
   };
 
-  const handleBulkRefresh = async () => {
+  const handleBulkRefresh = () => {
     if (selectedProspects.length === 0) return;
-    if (!confirm(`Are you sure you want to refresh the profiles and scores for ${selectedProspects.length} candidates? This will rescrape their details.`)) return;
+    setBulkRefreshRemarks('');
+    setShowBulkRefreshModal(true);
+  };
+
+  const submitBulkRefresh = async () => {
+    if (!bulkRefreshRemarks.trim()) {
+      alert("Recruiter remarks are mandatory to refresh profile details.");
+      return;
+    }
 
     try {
+      setShowBulkRefreshModal(false);
       setProspectsLoading(true);
-      const promises = selectedProspects.map(matchId => {
-        return fetch(`${API_URL}/api/prospects/sourcing/${matchId}/refresh`, { 
-          credentials: 'include',  
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            changedBy: 'Admin Recruiter',
-            reason: 'Bulk profile refresh'
-          })
-        });
+      const res = await fetch(`${API_URL}/api/prospects/sourcing/bulk-refresh`, {
+        credentials: 'include',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchIds: selectedProspects,
+          reason: bulkRefreshRemarks.trim(),
+          changedBy: 'Admin Recruiter'
+        })
       });
-      await Promise.all(promises);
+      const result = await res.json();
+      if (!result.success) {
+        throw new Error(result.error || "Batch refresh API failed.");
+      }
+      const countRefreshed = selectedProspects.length;
       setSelectedProspects([]);
-      alert(`Successfully refreshed ${promises.length} profiles!`);
+      setRefreshSuccessCount(countRefreshed);
       await fetchIdentifiedProspects();
     } catch (err) {
-      console.error('Bulk refresh failed:', err);
-      alert('Failed to refresh profiles.');
+      alert("Bulk refresh failed: " + err.message);
     } finally {
       setProspectsLoading(false);
     }
@@ -793,9 +807,9 @@ export default function AISourcingPage() {
               <button
                 type="button"
                 onClick={handleBulkRefresh}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-green-700 text-white rounded hover:bg-green-800 transition-colors shadow-sm"
+                className="px-3 py-1 bg-white border border-green-700 hover:bg-green-50 text-green-700 rounded transition-colors flex items-center gap-1.5"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                 Bulk Refresh
               </button>
               <button
@@ -1174,6 +1188,98 @@ export default function AISourcingPage() {
         </div>
       )}
 
+      {/* Bulk Refresh Justification Modal */}
+      {showBulkRefreshModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowBulkRefreshModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200 overflow-hidden animate-scale-up text-left" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-green-800 px-4 py-3 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">
+                Bulk Refresh Prospects
+              </h3>
+              <button onClick={() => setShowBulkRefreshModal(false)} className="hover:text-green-200">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4 text-xs">
+              <div>
+                <p className="text-gray-500 font-semibold mb-1">Selected Prospects:</p>
+                <p className="font-bold text-gray-800 text-sm">{selectedProspects.length} candidates</p>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 p-2.5 rounded-lg">
+                <p className="text-[10px] text-gray-400 font-bold uppercase">Bulk Action</p>
+                <p className="font-bold text-green-700 mt-0.5">
+                  Refresh Candidate Profile and AI Assesment
+                </p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-amber-800">
+                <div className="flex items-center gap-1.5 font-bold text-amber-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-600"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>Exercise Caution</span>
+                </div>
+                <p className="mt-1 leading-normal font-medium text-[10px] text-amber-800">
+                  This operation initiates live talent network searches and deep-level AI evaluations for {selectedProspects.length} candidates. Doing so incurs heavy costs. Please verify details before executing.
+                </p>
+              </div>
+              <div>
+                <label className="block text-gray-500 font-bold mb-1">Recruiter Remarks / Reason (Mandatory)</label>
+                <textarea 
+                  value={bulkRefreshRemarks}
+                  onChange={(e) => setBulkRefreshRemarks(e.target.value)}
+                  placeholder="Provide a mandatory reason/justification for this bulk refresh..."
+                  className="w-full border-gray-300 rounded focus:ring-green-700 text-xs p-2 bg-white"
+                  rows="3"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setShowBulkRefreshModal(false)} className="px-3 py-1.5 border border-gray-300 rounded font-bold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button 
+                  type="button"
+                  onClick={submitBulkRefresh}
+                  disabled={!bulkRefreshRemarks.trim()}
+                  className={`px-4 py-1.5 text-white rounded font-bold transition-colors shadow-sm ${!bulkRefreshRemarks.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-700 hover:bg-green-800'}`}
+                >
+                  Refresh Profiles
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refresh Success Modal */}
+      {refreshSuccessCount !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRefreshSuccessCount(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-200 overflow-hidden animate-scale-up text-left p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 p-2 rounded-full border border-emerald-100 flex-shrink-0">
+                <svg className="w-6 h-6 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-emerald-950">Refresh Complete!</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  {refreshSuccessCount === 1 
+                    ? "Candidate Profile successfully refreshed and analyzed by AI"
+                    : `${refreshSuccessCount} Profiles successfully refreshed and analyzed by AI.`
+                  }
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => setRefreshSuccessCount(null)} 
+                className="px-4 py-1.5 bg-green-700 text-white rounded font-bold hover:bg-green-800 transition-colors shadow-sm text-xs"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Prospect Detail Drawer Component */}
       <ProspectDrawer 
         matchId={activeMatchId}
@@ -1212,7 +1318,7 @@ export default function AISourcingPage() {
                   AI Sourcing Optimization Settings (Internal Use Only)
                 </div>
                 <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
-                  Fine-tune these private internal configurations to instruct Gemini AI on target competitor talent pools and keyword synonyms for highly accurate sourcing dorks.
+                  Fine-tune these internal configurations to get more accurate sourcing results.
                 </p>
 
                 <div className="space-y-3.5">

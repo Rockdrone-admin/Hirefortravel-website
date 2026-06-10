@@ -47,6 +47,9 @@ export async function GET(req) {
     
     if (entity_id) {
       query = query.eq('entity_id', entity_id);
+    } else {
+      // Exclude bulk child refreshes from the global timeline
+      query = query.not('event_type', 'eq', 'UPDATE_CANDIDATE_BULK_CHILD');
     }
     
     if (user_id) {

@@ -15,18 +15,29 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   const [users, setUsers] = useState([]);
   const [recruiterRemarks, setRecruiterRemarks] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [showRefreshModal, setShowRefreshModal] = useState(false);
+  const [refreshRemarks, setRefreshRemarks] = useState('');
+  const [refreshSuccessCount, setRefreshSuccessCount] = useState(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
-  const handleRefreshProfile = async () => {
+  const handleRefreshProfile = () => {
     if (!profile.linkedin_url) {
       alert("This candidate does not have a LinkedIn URL configured, so they cannot be refreshed.");
       return;
     }
-    const confirmRefresh = confirm(`Are you sure you want to refresh this profile? This will scrape fresh details and rerun the AI evaluation.`);
-    if (!confirmRefresh) return;
+    setRefreshRemarks('');
+    setShowRefreshModal(true);
+  };
+
+  const submitRefreshProfile = async () => {
+    if (!refreshRemarks.trim()) {
+      alert("Recruiter remarks are mandatory to refresh the profile.");
+      return;
+    }
 
     try {
+      setShowRefreshModal(false);
       setRefreshing(true);
       const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}/refresh`, { 
         credentials: 'include',  
@@ -34,12 +45,12 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           changedBy: 'Admin Recruiter',
-          reason: 'Manual profile refresh'
+          reason: refreshRemarks.trim()
         })
       });
       const result = await res.json();
       if (result.success && result.data) {
-        alert("Profile details and AI score refreshed successfully!");
+        setRefreshSuccessCount(1);
         setData(result.data);
         setProfile(result.data.prospect || {});
         setMatch(result.data);
@@ -685,6 +696,94 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
           </div>
         </div>
       </div>
+      {/* Profile Refresh Remarks Modal */}
+      {showRefreshModal && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center bg-black/40 p-4" style={{ zIndex: 9999 }} onClick={() => setShowRefreshModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200 overflow-hidden animate-scale-up text-left" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-green-800 px-4 py-3 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">
+                Refresh Candidate Profile
+              </h3>
+              <button onClick={() => setShowRefreshModal(false)} className="hover:text-green-200">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4 text-xs">
+              <div>
+                <p className="text-gray-500 font-semibold mb-1">Candidate:</p>
+                <p className="font-bold text-gray-800 text-sm">{profile.name}</p>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 p-2.5 rounded-lg">
+                <p className="text-[10px] text-gray-400 font-bold uppercase">Refresh Action</p>
+                <p className="font-bold text-green-700 mt-0.5">
+                  Refresh Candidate Profile and AI Assesment
+                </p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-amber-800">
+                <div className="flex items-center gap-1.5 font-bold text-amber-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-600"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>Premium Action Fee Applies</span>
+                </div>
+                <p className="mt-1 leading-normal font-medium text-[10px] text-amber-800">
+                  This operation initiates live talent network searches and deep-level AI evaluations. Doing so incurs active resource costs. Please verify details before executing.
+                </p>
+              </div>
+              <div>
+                <label className="block text-gray-500 font-bold mb-1">Recruiter Remarks / Reason (Mandatory)</label>
+                <textarea 
+                  value={refreshRemarks}
+                  onChange={(e) => setRefreshRemarks(e.target.value)}
+                  placeholder="Provide a mandatory reason for refreshing this profile..."
+                  className="w-full border-gray-300 rounded focus:ring-green-700 text-xs p-2 bg-white"
+                  rows="3"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setShowRefreshModal(false)} className="px-3 py-1.5 border border-gray-300 rounded font-bold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button 
+                  type="button"
+                  onClick={submitRefreshProfile}
+                  disabled={!refreshRemarks.trim()}
+                  className={`px-4 py-1.5 text-white rounded font-bold transition-colors shadow-sm ${!refreshRemarks.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-700 hover:bg-green-800'}`}
+                >
+                  Refresh Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refresh Success Modal */}
+      {refreshSuccessCount !== null && (
+        <div className="fixed inset-0 z-55 flex items-center justify-center bg-black/40 p-4" style={{ zIndex: 9999 }} onClick={() => setRefreshSuccessCount(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-200 overflow-hidden animate-scale-up text-left p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 p-2 rounded-full border border-emerald-100 flex-shrink-0">
+                <svg className="w-6 h-6 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-emerald-950">Refresh Complete!</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Candidate Profile successfully refreshed and analyzed by AI.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => setRefreshSuccessCount(null)} 
+                className="px-4 py-1.5 bg-green-700 text-white rounded font-bold hover:bg-green-800 transition-colors shadow-sm text-xs"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

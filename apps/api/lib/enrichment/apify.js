@@ -1,18 +1,18 @@
 import { ApifyClient } from 'apify-client';
 import { parseSerpSnippet } from './utils.js';
 
-export async function enrichWithApify(linkedinUrl, serpSnippet = '') {
+export async function enrichWithApify(linkedinUrl, serpSnippet = '', sagaType = 'Sourcing Saga') {
   const apiKey = process.env.APIFY_API_TOKEN;
   
   if (!linkedinUrl) {
     throw new Error('LinkedIn URL is required for enrichment');
   }
 
-  console.log(`[Sourcing Saga: Enrich] Initiating Apify enrichment for URL: ${linkedinUrl}`);
+  console.log(`[${sagaType}: Enrich] Initiating Apify enrichment for URL: ${linkedinUrl}`);
 
   if (apiKey) {
     try {
-      console.log(`[Sourcing Saga: Scraper] Scraping LinkedIn profile via Apify: ${linkedinUrl}`);
+      console.log(`[${sagaType}: Scraper] Scraping LinkedIn profile via Apify: ${linkedinUrl}`);
       
       const client = new ApifyClient({
           token: apiKey,
@@ -32,23 +32,23 @@ export async function enrichWithApify(linkedinUrl, serpSnippet = '') {
       if (items && items.length > 0) {
         let profile = items[0];
         const logTitle = (profile.currentPosition && profile.currentPosition.length > 0) ? profile.currentPosition[0].position : profile.headline;
-        console.log(`[Sourcing Saga: Scraper] ✅ Apify scrape successful | Name: "${profile.firstName || ''} ${profile.lastName || ''}" | Title: "${logTitle || ''}"`);
-        return cleanApifyPayload(profile, linkedinUrl, serpSnippet);
+        console.log(`[${sagaType}: Scraper] ✅ Apify scrape successful | Name: "${profile.firstName || ''} ${profile.lastName || ''}" | Title: "${logTitle || ''}"`);
+        return cleanApifyPayload(profile, linkedinUrl, serpSnippet, sagaType);
       } else {
-        console.log(`[Sourcing Saga: Scraper] ⚠️ Apify scrape succeeded but returned 0 items.`);
+        console.log(`[${sagaType}: Scraper] ⚠️ Apify scrape succeeded but returned 0 items.`);
       }
     } catch (err) {
-      console.error(`[Sourcing Saga: Scraper] ❌ Exception during Apify profile scrape, falling back to SERP snippet:`, err.message);
+      console.error(`[${sagaType}: Scraper] ❌ Exception during Apify profile scrape, falling back to SERP snippet:`, err.message);
     }
   } else {
-    console.log(`[Sourcing Saga: Enrich] ⚠️ Apify API key is not configured. Falling back to SERP snippet parser.`);
+    console.log(`[${sagaType}: Enrich] ⚠️ Apify API key is not configured. Falling back to SERP snippet parser.`);
   }
 
-  console.log(`[Sourcing Saga: Enrich] ℹ️ Using fallback Google Snippet parser for: ${linkedinUrl}`);
+  console.log(`[${sagaType}: Enrich] ℹ️ Using fallback Google Snippet parser for: ${linkedinUrl}`);
   return parseSerpSnippet(linkedinUrl, serpSnippet);
 }
 
-function cleanApifyPayload(raw, linkedinUrl, serpSnippet = '') {
+function cleanApifyPayload(raw, linkedinUrl, serpSnippet = '', sagaType = 'Sourcing Saga') {
   const parsedSerp = parseSerpSnippet(linkedinUrl, serpSnippet);
 
   // 1. Name
@@ -57,7 +57,7 @@ function cleanApifyPayload(raw, linkedinUrl, serpSnippet = '') {
   if (!name && parsedSerp.name && parsedSerp.name !== 'LinkedIn Member' && parsedSerp.name !== 'Discovered Candidate') {
     name = parsedSerp.name;
     nameFallbackUsed = true;
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Name was missing from Apify. Used SERP fallback: "${name}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Name was missing from Apify. Used SERP fallback: "${name}"`);
   }
   if (!name) {
     name = parsedSerp.name || 'Discovered Candidate';
@@ -110,12 +110,12 @@ function cleanApifyPayload(raw, linkedinUrl, serpSnippet = '') {
       const dateStr = (start || end !== 'Present') ? ` (${start} - ${end})` : '';
       return `${pos.position || pos.positionName || ''} at ${pos.companyName || ''}${dateStr}`;
     }).join(', ');
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Experience missing from raw.experience. Falling back on raw.currentPosition: "${experienceList}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Experience missing from raw.experience. Falling back on raw.currentPosition: "${experienceList}"`);
   }
 
   if (!experienceList && parsedSerp.experience) {
     experienceList = parsedSerp.experience;
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Experience missing from Apify. Used SERP fallback: "${experienceList}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Experience missing from Apify. Used SERP fallback: "${experienceList}"`);
   }
 
   // 7. Skills

@@ -107,6 +107,7 @@ export default function ProspectsCRMBoard() {
   const [bulkReason, setBulkReason] = useState('');
   const [executingBulk, setExecutingBulk] = useState(false);
   const [users, setUsers] = useState([]);
+  const [refreshSuccessCount, setRefreshSuccessCount] = useState(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -259,56 +260,53 @@ export default function ProspectsCRMBoard() {
 
     try {
       setExecutingBulk(true);
-
       if (bulkAction === 'refresh') {
+        const res = await fetch(`${API_URL}/api/prospects/sourcing/bulk-refresh`, {
+          credentials: 'include',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            matchIds: selectedProspects,
+            reason: bulkReason,
+            changedBy: 'Admin Recruiter'
+          })
+        });
+        const result = await res.json();
+        if (!result.success) {
+          throw new Error(result.error || "Batch refresh API failed.");
+        }
+        setRefreshSuccessCount(selectedProspects.length);
+      } else {
+        const payloadUpdates = {};
+        if (bulkAction === 'stage') payloadUpdates.stage = bulkStage;
+        if (bulkAction === 'owner') payloadUpdates.owner = bulkOwner;
+        if (bulkAction === 'tags') payloadUpdates.tags = bulkTags.split(',').map(t => t.trim()).filter(Boolean);
+
         const promises = selectedProspects.map(matchId => {
-          return fetch(`${API_URL}/api/prospects/sourcing/${matchId}/refresh`, { 
-            credentials: 'include',  
-            method: 'POST',
+          let currentMatch = prospects.find(p => p.id === matchId);
+          let finalMatchUpdates = { ...payloadUpdates };
+          if (bulkAction === 'tags' && currentMatch) {
+            const originalTags = Array.isArray(currentMatch.tags) ? currentMatch.tags : [];
+            finalMatchUpdates.tags = Array.from(new Set([...originalTags, ...payloadUpdates.tags]));
+          }
+          return fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              matchUpdates: finalMatchUpdates,
               changedBy: 'Admin Recruiter',
-              reason: `Bulk profile refresh: ${bulkReason}`
+              reason: `Bulk action [${bulkAction}] update: ${bulkReason}`
             })
           });
         });
+
         await Promise.all(promises);
-        alert(`Bulk profile refresh complete!`);
-        setSelectedProspects([]);
-        setBulkAction(''); setBulkReason('');
-        setLoading(true); await fetchCRMProspects(); setLoading(false);
-        return;
+        alert(`Bulk update complete!`);
       }
-
-      const payloadUpdates = {};
-      if (bulkAction === 'stage') payloadUpdates.stage = bulkStage;
-      if (bulkAction === 'owner') payloadUpdates.owner = bulkOwner;
-      if (bulkAction === 'tags') payloadUpdates.tags = bulkTags.split(',').map(t => t.trim()).filter(Boolean);
-
-      const promises = selectedProspects.map(matchId => {
-        let currentMatch = prospects.find(p => p.id === matchId);
-        let finalMatchUpdates = { ...payloadUpdates };
-        if (bulkAction === 'tags' && currentMatch) {
-          const originalTags = Array.isArray(currentMatch.tags) ? currentMatch.tags : [];
-          finalMatchUpdates.tags = Array.from(new Set([...originalTags, ...payloadUpdates.tags]));
-        }
-        return fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            matchUpdates: finalMatchUpdates,
-            changedBy: 'Admin Recruiter',
-            reason: `Bulk action [${bulkAction}] update: ${bulkReason}`
-          })
-        });
-      });
-
-      await Promise.all(promises);
-      alert(`Bulk update complete!`);
       setSelectedProspects([]);
       setBulkAction(''); setBulkReason(''); setBulkOwner(''); setBulkTags('');
       setLoading(true); await fetchCRMProspects(); setLoading(false);
     } catch (err) {
-      alert("Bulk update failed.");
+      alert("Bulk update failed: " + err.message);
     } finally {
       setExecutingBulk(false);
     }
@@ -608,11 +606,6 @@ export default function ProspectsCRMBoard() {
                   </select>
                 )}
                 {bulkAction === 'tags' && <input type="text" placeholder="e.g. star, top-tier" value={bulkTags} onChange={(e) => setBulkTags(e.target.value)} className="w-full border-gray-300 rounded text-xs" />}
-                {bulkAction === 'refresh' && (
-                  <div className="text-gray-500 font-bold py-1 bg-gray-50 border border-dashed border-gray-200 rounded px-2.5 text-center">
-                    Rescrape profiles & rerun AI scoring
-                  </div>
-                )}
               </div>
               <div className="md:col-span-1">
                 <input type="text" required placeholder="Justification..." value={bulkReason} onChange={(e) => setBulkReason(e.target.value)} className="w-full border-yellow-300 bg-yellow-50/20 focus:ring-yellow-500 rounded text-xs" />
@@ -1311,6 +1304,39 @@ export default function ProspectsCRMBoard() {
       )}
 
       <ProspectDrawer matchId={activeMatchId} onClose={() => setActiveMatchId(null)} onSaveSuccess={fetchCRMProspects} />
+
+      {/* Refresh Success Modal */}
+      {refreshSuccessCount !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRefreshSuccessCount(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-200 overflow-hidden animate-scale-up text-left p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 p-2 rounded-full border border-emerald-100 flex-shrink-0">
+                <svg className="w-6 h-6 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-emerald-950">Refresh Complete!</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  {refreshSuccessCount === 1 
+                    ? "Candidate Profile successfully refreshed and analyzed by AI"
+                    : `${refreshSuccessCount} Profiles successfully refreshed and analyzed by AI.`
+                  }
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => setRefreshSuccessCount(null)} 
+                className="px-4 py-1.5 bg-green-700 text-white rounded font-bold hover:bg-green-800 transition-colors shadow-sm text-xs"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

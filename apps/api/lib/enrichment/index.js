@@ -7,13 +7,13 @@ import { enrichWithBrightData } from './brightdata.js';
  * @param {string} serpSnippet - The Google SERP snippet used as a fallback.
  * @param {string} scraperChoice - The enrichment provider to use ('apify' or 'brightdata').
  */
-export async function enrichLinkedInProfile(linkedinUrl, serpSnippet = '', scraperChoice = 'apify') {
-  console.log(`[Sourcing Saga: Enrich] Using provider: ${scraperChoice}`);
+export async function enrichLinkedInProfile(linkedinUrl, serpSnippet = '', scraperChoice = 'apify', sagaType = 'Sourcing Saga') {
+  console.log(`[${sagaType}: Enrich] Using provider: ${scraperChoice}`);
   
   if (scraperChoice === 'brightdata') {
-    return enrichWithBrightData(linkedinUrl, serpSnippet);
+    return enrichWithBrightData(linkedinUrl, serpSnippet, sagaType);
   } else {
     // Default to Apify
-    return enrichWithApify(linkedinUrl, serpSnippet);
+    return enrichWithApify(linkedinUrl, serpSnippet, sagaType);
   }
 }

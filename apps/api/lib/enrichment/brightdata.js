@@ -4,19 +4,19 @@ import { parseSerpSnippet, generateFallbackComprehensiveProfile } from './utils.
  * Wrapper for Bright Data LinkedIn Profile Scraper API.
  * Includes a robust fallback parser that extracts info from Google SERP snippets if scraping fails.
  */
-export async function enrichWithBrightData(linkedinUrl, serpSnippet = '') {
+export async function enrichWithBrightData(linkedinUrl, serpSnippet = '', sagaType = 'Sourcing Saga') {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
   
   if (!linkedinUrl) {
     throw new Error('LinkedIn URL is required for enrichment');
   }
 
-  console.log(`[Sourcing Saga: Enrich] Initiating profile enrichment for URL: ${linkedinUrl}`);
+  console.log(`[${sagaType}: Enrich] Initiating profile enrichment for URL: ${linkedinUrl}`);
 
   // 1. If Bright Data key is configured, attempt scraping
   if (apiKey) {
     try {
-      console.log(`[Sourcing Saga: Scraper] Scraping LinkedIn profile via Bright Data: ${linkedinUrl}`);
+      console.log(`[${sagaType}: Scraper] Scraping LinkedIn profile via Bright Data: ${linkedinUrl}`);
       
       const scrapeResponse = await fetch('https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_l1viktl72bvl7bjuj0&notify=false&include_errors=true', {
         method: 'POST',
@@ -29,7 +29,7 @@ export async function enrichWithBrightData(linkedinUrl, serpSnippet = '') {
         })
       });
 
-      console.log(`[Sourcing Saga: Scraper] Response: HTTP ${scrapeResponse.status} ${scrapeResponse.statusText}`);
+      console.log(`[${sagaType}: Scraper] Response: HTTP ${scrapeResponse.status} ${scrapeResponse.statusText}`);
 
       if (scrapeResponse.ok && scrapeResponse.status !== 202) {
         const text = await scrapeResponse.text();
@@ -43,33 +43,33 @@ export async function enrichWithBrightData(linkedinUrl, serpSnippet = '') {
         if (profile) {
           const currentCompanyName = profile.current_company?.name || profile.current_company_name || '';
           const currentJobTitle = profile.current_company?.title || profile.current_job?.title || '';
-          console.log(`[Sourcing Saga: Scraper] ✅ Scrape successful | Name: "${profile.name || profile.full_name || 'N/A'}" | Title: "${currentJobTitle}" | Company: "${currentCompanyName}" | Location: "${profile.city || profile.location || 'N/A'}"`);
-          return cleanBrightDataPayload(profile, linkedinUrl, serpSnippet);
+          console.log(`[${sagaType}: Scraper] ✅ Scrape successful | Name: "${profile.name || profile.full_name || 'N/A'}" | Title: "${currentJobTitle}" | Company: "${currentCompanyName}" | Location: "${profile.city || profile.location || 'N/A'}"`);
+          return cleanBrightDataPayload(profile, linkedinUrl, serpSnippet, sagaType);
         } else {
-          console.log(`[Sourcing Saga: Scraper] ⚠️ Scrape succeeded but profile object was empty/null.`);
+          console.log(`[${sagaType}: Scraper] ⚠️ Scrape succeeded but profile object was empty/null.`);
         }
       } else if (scrapeResponse.status === 202) {
-        console.warn(`[Sourcing Saga: Scraper] ⚠️ Direct-scrape returned 202 Accepted (Async processing required). Falling back to Google SERP snippet.`);
+        console.warn(`[${sagaType}: Scraper] ⚠️ Direct-scrape returned 202 Accepted (Async processing required). Falling back to Google SERP snippet.`);
       } else {
         const errText = await scrapeResponse.text().catch(() => 'unknown error text');
-        console.error(`[Sourcing Saga: Scraper] ❌ Scrape request failed | Status: ${scrapeResponse.status} | Error payload:`, errText);
+        console.error(`[${sagaType}: Scraper] ❌ Scrape request failed | Status: ${scrapeResponse.status} | Error payload:`, errText);
       }
     } catch (err) {
-      console.error(`[Sourcing Saga: Scraper] ❌ Exception during Bright Data profile scrape, falling back to SERP snippet:`, err.message);
+      console.error(`[${sagaType}: Scraper] ❌ Exception during Bright Data profile scrape, falling back to SERP snippet:`, err.message);
     }
   } else {
-    console.log(`[Sourcing Saga: Enrich] ⚠️ Bright Data API key is not configured. Falling back to SERP snippet parser.`);
+    console.log(`[${sagaType}: Enrich] ⚠️ Bright Data API key is not configured. Falling back to SERP snippet parser.`);
   }
 
   // 2. Resilient fallback parsing using Google Search Snippet
-  console.log(`[Sourcing Saga: Enrich] ℹ️ Using fallback Google Snippet parser for: ${linkedinUrl}`);
+  console.log(`[${sagaType}: Enrich] ℹ️ Using fallback Google Snippet parser for: ${linkedinUrl}`);
   return parseSerpSnippet(linkedinUrl, serpSnippet);
 }
 
 /**
  * Clean and slim down the Bright Data payload to prevent database bloat.
  */
-function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '') {
+function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '', sagaType = 'Sourcing Saga') {
   // Pre-parse the SERP snippet for robust per-field fallbacks
   const parsedSerp = parseSerpSnippet(linkedinUrl, serpSnippet);
 
@@ -79,7 +79,7 @@ function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '') {
   if (!name && parsedSerp.name && parsedSerp.name !== 'LinkedIn Member' && parsedSerp.name !== 'Discovered Candidate') {
     name = parsedSerp.name;
     nameFallbackUsed = true;
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Name was missing from scraped data. Used SERP fallback: "${name}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Name was missing from scraped data. Used SERP fallback: "${name}"`);
   }
   if (!name) {
     name = parsedSerp.name || 'Discovered Candidate';
@@ -94,7 +94,7 @@ function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '') {
   if (!latestCompany && parsedSerp.latest_company) {
     latestCompany = parsedSerp.latest_company;
     companyFallbackUsed = true;
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Company was missing from scraped data. Used SERP fallback: "${latestCompany}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Company was missing from scraped data. Used SERP fallback: "${latestCompany}"`);
   }
 
   // 3. Latest Title Fallback Check
@@ -106,7 +106,7 @@ function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '') {
   if (!latestTitle && parsedSerp.latest_title) {
     latestTitle = parsedSerp.latest_title;
     titleFallbackUsed = true;
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Title was missing from scraped data. Used SERP fallback: "${latestTitle}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Title was missing from scraped data. Used SERP fallback: "${latestTitle}"`);
   }
 
   // 4. City/Location Check
@@ -124,7 +124,7 @@ function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '') {
   if (!experienceList && parsedSerp.experience) {
     experienceList = parsedSerp.experience;
     expFallbackUsed = true;
-    console.log(`[Sourcing Saga: Enrich] [Fallback] ℹ️ Experience details missing from scraped data. Used SERP fallback: "${experienceList}"`);
+    console.log(`[${sagaType}: Enrich] [Fallback] ℹ️ Experience details missing from scraped data. Used SERP fallback: "${experienceList}"`);
   }
 
   const skillsList = Array.isArray(raw.skills) 
@@ -132,7 +132,7 @@ function cleanBrightDataPayload(raw, linkedinUrl, serpSnippet = '') {
     : '';
 
   const finalConfidence = (nameFallbackUsed || titleFallbackUsed || companyFallbackUsed) ? 'medium' : 'high';
-  console.log(`[Sourcing Saga: Enrich] ✅ Enriched Profile Data | Name: "${name}" | Title: "${latestTitle}" | Company: "${latestCompany}" | City: "${city}" | Confidence: ${finalConfidence}`);
+  console.log(`[${sagaType}: Enrich] ✅ Enriched Profile Data | Name: "${name}" | Title: "${latestTitle}" | Company: "${latestCompany}" | City: "${city}" | Confidence: ${finalConfidence}`);
 
   // Generate Comprehensive Markdown Profile
   let compProfile = `# Candidate Profile\n\n`;

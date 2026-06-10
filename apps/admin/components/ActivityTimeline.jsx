@@ -146,12 +146,32 @@ export default function ActivityTimeline({
       const result = await response.json();
       
       if (result.success) {
-        setEvents(result.data);
+        let filteredEvents = result.data;
+        if (!entityId) {
+          filteredEvents = result.data.filter(e => {
+            const isIndividualRefresh = e.title && e.title.toLowerCase().startsWith('refreshed profile for candidate');
+            if (!isIndividualRefresh) return true;
+            
+            // Check if there is a matching bulk parent event in the list
+            const hasBulkParent = result.data.some(b => {
+              if (!b.title || !b.title.toLowerCase().startsWith('refreshed profiles for')) return false;
+              if (b.user_id !== e.user_id && b.user_name !== e.user_name) return false;
+              if (b.description !== e.description) return false;
+              
+              const timeE = new Date(e.created_at).getTime();
+              const timeB = new Date(b.created_at).getTime();
+              return Math.abs(timeE - timeB) < 600000; // within 10 minutes
+            });
+            
+            return !hasBulkParent;
+          });
+        }
+        setEvents(filteredEvents);
         if (result.pagination) {
           setTotalCount(result.pagination.total);
           setTotalPages(result.pagination.totalPages);
         } else {
-          setTotalCount(result.data.length);
+          setTotalCount(filteredEvents.length);
           setTotalPages(1);
         }
       } else {
@@ -551,7 +571,7 @@ export default function ActivityTimeline({
       'changes', 'job_id', 'run_id', 'job_ids', 'triggered_by', 'sourced_at', 'candidate_name',
       'ip', 'device', 'user_agent', 'userAgent', 'session_id', 'sessionId',
       'company_name', 'companyName', 'logo_url', 'logoUrl', 'new_permissions', 'permissions',
-      'updates'
+      'updates', 'scraper'
     ];
     const visibleEntries = Object.entries(metadata).filter(([key]) => !ignoredKeys.includes(key));
 

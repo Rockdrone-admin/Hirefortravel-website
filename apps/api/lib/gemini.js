@@ -10,7 +10,7 @@ function getAiClient() {
     const project = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'amiable-anagram-495103-c4';
     const location = process.env.GCP_LOCATION || 'global';
     
-    console.log(`[Sourcing Saga: Init] Initializing Vertex AI client for project: ${project}, location: ${location}...`);
+    console.log(`[AI Engine: Init] Initializing Vertex AI client for project: ${project}, location: ${location}...`);
     
     // Explicitly initialize the client with Vertex AI. Let any authentication or project setup errors throw directly.
     ai = new GoogleGenAI({
@@ -182,7 +182,7 @@ export async function parseJobDetailsAndGenerateDorks(job, existingTitles = [], 
   return JSON.parse(response.text);
 }
 
-export async function scoreAndEvaluateProspect(job, prospect) {
+export async function scoreAndEvaluateProspect(job, prospect, sagaType = 'Sourcing Saga') {
   const client = getAiClient();
   const environment = getEnvironment ? getEnvironment() : 'development';
 
@@ -200,7 +200,7 @@ export async function scoreAndEvaluateProspect(job, prospect) {
         scoringInstructions = data.instructions;
       }
     } catch (e) {
-      console.warn('[Sourcing Saga: Eval] ⚠️ Failed to fetch custom scoring prompts from DB, falling back to defaults:', e.message);
+      console.warn(`[${sagaType}: Eval] ⚠️ Failed to fetch custom scoring prompts from DB, falling back to defaults:`, e.message);
     }
   }
 
@@ -214,7 +214,7 @@ export async function scoreAndEvaluateProspect(job, prospect) {
         const jsonStr = inst.substring('SCORING_WEIGHTS:'.length);
         weights = JSON.parse(jsonStr);
       } catch (e) {
-        console.error('[Sourcing Saga: Eval] ❌ Failed to parse SCORING_WEIGHTS instruction:', e.message);
+        console.error(`[${sagaType}: Eval] ❌ Failed to parse SCORING_WEIGHTS instruction:`, e.message);
       }
     } else {
       parsedInstructions.push(inst);
