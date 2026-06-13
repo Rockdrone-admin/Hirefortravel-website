@@ -45,8 +45,8 @@ export default function BaseModal({
           <div className="flex items-start gap-3">
             {icon && <div className="mt-1 flex-shrink-0 text-green-700">{icon}</div>}
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-gray-800 leading-tight">{title}</h2>
-              {description && <p className="text-xs text-gray-500 mt-1 leading-normal">{description}</p>}
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 leading-tight">{title}</h2>
+              {description && <p className="text-sm text-gray-500 mt-1 leading-normal">{description}</p>}
             </div>
           </div>
           <button 
@@ -60,7 +60,7 @@ export default function BaseModal({
         </div>
 
         {/* Form Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 text-xs">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 text-sm">
           <form id={formId} onSubmit={handleFormSubmit} className="space-y-5">
             {children}
           </form>
@@ -72,7 +72,7 @@ export default function BaseModal({
             type="button" 
             onClick={onClose} 
             disabled={loading}
-            className="px-5 py-2.5 rounded-lg font-medium text-gray-600 hover:bg-gray-200 transition-all disabled:opacity-50 text-xs w-full sm:w-auto"
+            className="px-5 py-2.5 rounded-lg font-medium text-gray-600 hover:bg-gray-200 transition-all disabled:opacity-50 text-sm w-full sm:w-auto"
           >
             {cancelLabel}
           </button>
@@ -80,7 +80,7 @@ export default function BaseModal({
             type="submit" 
             form={formId}
             disabled={loading}
-            className="px-5 py-2.5 rounded-lg font-bold text-white bg-green-700 hover:bg-green-800 shadow-md shadow-green-200/50 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 text-xs w-full sm:w-auto"
+            className="px-5 py-2.5 rounded-lg font-bold text-white bg-green-700 hover:bg-green-800 shadow-md shadow-green-200/50 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 text-sm w-full sm:w-auto"
           >
             {loading && (
               <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

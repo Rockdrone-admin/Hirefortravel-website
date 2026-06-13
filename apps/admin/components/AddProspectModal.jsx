@@ -72,7 +72,7 @@ export default function AddProspectModal({
       size="2xl"
       formId="add-prospect-form"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         {/* Row 1 */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Job Position *</label>
@@ -93,6 +93,9 @@ export default function AddProspectModal({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500 bg-white"
           >
             {ALL_STAGES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {!ALL_STAGES.some(s => s.id === 'ARCHIVED') && (
+              <option value="ARCHIVED">Archived</option>
+            )}
           </select>
         </div>
 
@@ -202,14 +205,14 @@ export default function AddProspectModal({
           </select>
         </div>
         <div className="col-span-1 md:col-span-2">
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Justification Notes *</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recruiter Notes *</label>
           <textarea 
             required 
             value={formData.remarks} 
             onChange={e => setFormData({...formData, remarks: e.target.value})} 
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500" 
             rows="3" 
-            placeholder="Enter justification or recruitment remarks for adding this candidate manually..."
+            placeholder="Enter recruiter remarks for adding this candidate manually..."
           ></textarea>
         </div>
       </div>

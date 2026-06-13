@@ -63,6 +63,9 @@ export default function AdminLayout({ children }) {
           const result = await response.json();
           if (result.success) {
             setUser(result.data);
+            if (typeof window !== 'undefined' && result.data) {
+              localStorage.setItem('hirefortravel_admin_username', result.data.username || result.data.email || 'Admin');
+            }
           }
         }
       } catch (err) {

@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 import ResizableTable from '../../../components/ResizableTable';
 import StageTransitionModal from '../../../components/StageTransitionModal';
+import AddProspectModal from '../../../components/AddProspectModal';
+import { ProspectsContext } from '../layout';
 
 const renderTimeIdentified = (dateStr) => {
   if (!dateStr) return <span className="text-gray-400 font-semibold">N/A</span>;
@@ -58,10 +60,76 @@ const getStageBadge = (stage) => {
 };
 
 export default function ProspectsDirectory() {
-  const [allProspects, setAllProspects] = useState([]);
-  const [activeJobs, setActiveJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    prospects: allProspects,
+    setProspects: setAllProspects,
+    refreshProspects,
+    activeJobs,
+    loading: contextLoading,
+    API_URL
+  } = useContext(ProspectsContext);
+
+  const loading = contextLoading;
+  const fetchAllProspects = refreshProspects;
   const [activeMatchId, setActiveMatchId] = useState(null);
+
+  // Add Prospect Modal States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addingProspect, setAddingProspect] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Load only admin users list on mount
+  useEffect(() => {
+    async function loadAdminUsers() {
+      if (!API_URL) return;
+      try {
+        setUsersLoading(true);
+        const usersRes = await fetch(`${API_URL}/api/admin/users`, { credentials: 'include' }).catch(e => {
+          console.error("Failed to load admin users list in Directory:", e);
+          return null;
+        });
+
+        if (usersRes) {
+          const usersResult = await usersRes.json();
+          if (usersResult.success && usersResult.data) {
+            const sortedUsers = usersResult.data
+              .filter(u => u.is_active)
+              .sort((a, b) => a.username.localeCompare(b.username));
+            setUsers(sortedUsers);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading admin users:", err);
+      } finally {
+        setUsersLoading(false);
+      }
+    }
+    loadAdminUsers();
+  }, [API_URL]);
+
+  const handleAddManualProspect = async (payload) => {
+    try {
+      setAddingProspect(true);
+      const res = await fetch(`${API_URL}/api/prospects`, { 
+        credentials: 'include',  
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (result.success) {
+        setIsAddModalOpen(false);
+        await fetchAllProspects();
+      } else {
+        alert(result.error || "Failed to create prospect manually.");
+      }
+    } catch (err) {
+      alert("Error creating prospect: " + err.message);
+    } finally {
+      setAddingProspect(false);
+    }
+  };
 
   // Filters & Sorting Config
   const [selectedJobId, setSelectedJobId] = useState('all');
@@ -106,7 +174,7 @@ export default function ProspectsDirectory() {
   };
 
   // Stage transition modal states
-  const [transitionDetails, setTransitionDetails] = useState(null); // { matchId, currentStage, candidateName }
+  const [transitionDetails, setTransitionDetails] = useState(null); // { matchId, currentStage, candidateName, currentJobId }
 
   // Bulk restore states
   const [executingBulk, setExecutingBulk] = useState(false);
@@ -114,42 +182,6 @@ export default function ProspectsDirectory() {
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [editingNotesMatchId, setEditingNotesMatchId] = useState(null);
   const [tempNotes, setTempNotes] = useState('');
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-
-  // 1. Fetch initial data
-  useEffect(() => {
-    async function loadInitialData() {
-      try {
-        setLoading(true);
-        // Load Active Jobs
-        const jobsRes = await fetch(`${API_URL}/api/jobs?status=active&admin=true`, { credentials: 'include' });
-        const jobsResult = await jobsRes.json();
-        if (jobsResult.success && jobsResult.data) {
-          setActiveJobs(jobsResult.data);
-        }
-
-        await fetchAllProspects();
-      } catch (err) {
-        console.error("Error loading Prospects Directory data:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadInitialData();
-  }, []);
-
-  const fetchAllProspects = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/prospects`, { credentials: 'include' });
-      const result = await res.json();
-      if (result.success && result.data) {
-        setAllProspects(result.data);
-      }
-    } catch (err) {
-      console.error("Error loading prospects:", err);
-    }
-  };
 
   const handleUpdateNotes = async (matchId, notesText) => {
     try {
@@ -172,14 +204,17 @@ export default function ProspectsDirectory() {
   };
 
   // 2. Click stage badge triggers transition popup
-  const triggerStageTransition = (matchId, currentStage, candidateName) => {
-    setTransitionDetails({ matchId, currentStage, candidateName });
+  const triggerStageTransition = (matchId, currentStage, candidateName, currentJobId) => {
+    setTransitionDetails({ matchId, currentStage, candidateName, currentJobId });
   };
 
-  const handleTransitionSubmit = async (selectedNewStage, remarks) => {
+  const handleTransitionSubmit = async (selectedNewStage, remarks, selectedJobId) => {
     const matchUpdates = { stage: selectedNewStage };
     if (remarks.trim()) {
       matchUpdates.human_notes = remarks.trim();
+    }
+    if (selectedJobId && selectedJobId !== transitionDetails.currentJobId) {
+      matchUpdates.job_id = selectedJobId;
     }
 
     const res = await fetch(`${API_URL}/api/prospects/sourcing/${transitionDetails.matchId}`, {
@@ -195,12 +230,20 @@ export default function ProspectsDirectory() {
     const result = await res.json();
     if (result.success) {
       // Update local list
-      setAllProspects(prev => prev.map(p => p.id === transitionDetails.matchId ? { 
-        ...p, 
-        stage: selectedNewStage,
-        active_flag: selectedNewStage !== 'ARCHIVED',
-        human_notes: remarks.trim() || p.human_notes
-      } : p));
+      setAllProspects(prev => prev.map(p => {
+        if (p.id === transitionDetails.matchId) {
+          const updatedJob = activeJobs.find(j => j.id === selectedJobId) || p.job;
+          return { 
+            ...p, 
+            stage: selectedNewStage,
+            job_id: selectedJobId || p.job_id,
+            job: updatedJob,
+            active_flag: selectedNewStage !== 'ARCHIVED',
+            human_notes: remarks.trim() || p.human_notes
+          };
+        }
+        return p;
+      }));
       setTransitionDetails(null);
     } else {
       throw new Error(result.error || 'Failed to update candidate pipeline stage.');
@@ -212,7 +255,7 @@ export default function ProspectsDirectory() {
     e.preventDefault();
     if (selectedProspects.length === 0) return;
     if (!bulkReason.trim()) {
-      alert("A batch restoration justification is mandatory.");
+      alert("Remarks are mandatory for bulk restoration action.");
       return;
     }
 
@@ -258,57 +301,89 @@ export default function ProspectsDirectory() {
     }
   };
 
-  // 4. Filters & Sorting Math
-  const filteredProspects = allProspects.filter(item => {
-    const matchesJob = selectedJobId === 'all' || item.job_id === selectedJobId || item.job?.id === selectedJobId;
-    const matchesStage = selectedStage === 'all' || item.stage === selectedStage;
-    
-    let matchesSearch = true;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+  // 4. Filters & Sorting Math (useMemo optimized)
+  const filteredProspects = useMemo(() => {
+    const list = allProspects.filter(item => {
+      const matchesJob = selectedJobId === 'all' || item.job_id === selectedJobId || item.job?.id === selectedJobId;
+      const matchesStage = selectedStage === 'all' || item.stage === selectedStage;
       
-      // 1. Basic profile & contact fields
-      const matchesProfile = (
-        item.prospect?.name?.toLowerCase().includes(q) ||
-        item.prospect?.latest_company?.toLowerCase().includes(q) ||
-        item.prospect?.latest_title?.toLowerCase().includes(q) ||
-        item.prospect?.functional_field?.toLowerCase().includes(q) ||
-        item.prospect?.city?.toLowerCase().includes(q) ||
-        item.prospect?.email?.toLowerCase().includes(q) ||
-        item.prospect?.phone?.toLowerCase().includes(q)
-      );
+      let matchesSearch = true;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        
+        // 1. Basic profile & contact fields
+        const matchesProfile = (
+          item.prospect?.name?.toLowerCase().includes(q) ||
+          item.prospect?.latest_company?.toLowerCase().includes(q) ||
+          item.prospect?.latest_title?.toLowerCase().includes(q) ||
+          item.prospect?.functional_field?.toLowerCase().includes(q) ||
+          item.prospect?.city?.toLowerCase().includes(q) ||
+          item.prospect?.email?.toLowerCase().includes(q) ||
+          item.prospect?.phone?.toLowerCase().includes(q)
+        );
 
-      if (matchesProfile) {
-        matchesSearch = true;
-      } else {
-        // 2. Search remarks
-        const prospectId = item.prospect?.id;
-        matchesSearch = prospectId ? allProspects.some(otherMatch => 
-          otherMatch.prospect?.id === prospectId && 
-          otherMatch.human_notes?.toLowerCase().includes(q)
-        ) : false;
+        if (matchesProfile) {
+          matchesSearch = true;
+        } else {
+          // 2. Search remarks (current notes or past timeline remarks)
+          const matchesCurrentRemarks = item.human_notes?.toLowerCase().includes(q);
+          const matchesPastRemarks = Array.isArray(item.past_remarks) && item.past_remarks.some(r => r.toLowerCase().includes(q));
+          
+          if (matchesCurrentRemarks || matchesPastRemarks) {
+            matchesSearch = true;
+          } else {
+            // 3. Search human_notes or past_remarks on ANY match for the same prospect
+            const prospectId = item.prospect?.id;
+            matchesSearch = prospectId ? allProspects.some(otherMatch => 
+              otherMatch.prospect?.id === prospectId && 
+              (
+                otherMatch.human_notes?.toLowerCase().includes(q) ||
+                (Array.isArray(otherMatch.past_remarks) && otherMatch.past_remarks.some(r => r.toLowerCase().includes(q)))
+              )
+            ) : false;
+          }
+        }
       }
-    }
-    return matchesJob && matchesStage && matchesSearch;
-  });
+      return matchesJob && matchesStage && matchesSearch;
+    });
 
-  filteredProspects.sort((a, b) => {
-    let comparison = 0;
-    if (sortConfig.key === 'score') {
-      const scoreA = a.manual_score || a.ai_score || 0;
-      const scoreB = b.manual_score || b.ai_score || 0;
-      comparison = scoreA - scoreB;
-    } else if (sortConfig.key === 'identified') {
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-      comparison = dateA - dateB;
-    } else if (sortConfig.key === 'name') {
-      const nameA = a.prospect?.name || '';
-      const nameB = b.prospect?.name || '';
-      comparison = nameA.localeCompare(nameB);
-    }
-    return sortConfig.direction === 'asc' ? comparison : -comparison;
-  });
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (sortConfig.key === 'score') {
+        const scoreA = a.manual_score || a.ai_score || 0;
+        const scoreB = b.manual_score || b.ai_score || 0;
+        comparison = scoreA - scoreB;
+      } else if (sortConfig.key === 'identified') {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        comparison = dateA - dateB;
+      } else if (sortConfig.key === 'name') {
+        const nameA = a.prospect?.name || '';
+        const nameB = b.prospect?.name || '';
+        comparison = nameA.localeCompare(nameB);
+      }
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [allProspects, selectedJobId, selectedStage, searchQuery, sortConfig]);
+
+  // Pagination Config
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const totalItems = filteredProspects.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  const paginatedProspects = useMemo(() => {
+    return filteredProspects.slice(startIndex, endIndex);
+  }, [filteredProspects, startIndex, endIndex]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedJobId, selectedStage, searchQuery]);
 
   // Check if any selected prospects are archived to show the bulk restore option
   const selectedArchivedCount = selectedProspects.filter(id => {
@@ -388,25 +463,35 @@ export default function ProspectsDirectory() {
           )}
         </div>
 
-        {/* Selected counts and quick actions */}
-        {selectedProspects.length > 0 && (
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            {selectedArchivedCount > 0 && (
-              <button
-                onClick={() => setIsBulkOpen(true)}
-                className="bg-green-700 text-white px-4 py-1.5 rounded-md text-xs font-bold hover:bg-green-800 transition-colors shadow-sm w-full md:w-auto text-center"
+        {/* Right side Actions */}
+        <div className="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end">
+          {selectedProspects.length > 0 && (
+            <>
+              {selectedArchivedCount > 0 && (
+                <button
+                  onClick={() => setIsBulkOpen(true)}
+                  className="bg-green-700 text-white px-4 py-1.5 rounded-md text-xs font-bold hover:bg-green-800 transition-colors shadow-sm w-full md:w-auto text-center"
+                >
+                  Bulk Restore Archived ({selectedArchivedCount})
+                </button>
+              )}
+              <button 
+                onClick={() => setSelectedProspects([])}
+                className="text-xs font-bold text-gray-400 hover:text-gray-600 px-2 py-1 transition-colors"
               >
-                Bulk Restore Archived ({selectedArchivedCount})
+                Deselect All ({selectedProspects.length})
               </button>
-            )}
-            <button 
-              onClick={() => setSelectedProspects([])}
-              className="text-xs font-bold text-gray-400 hover:text-gray-600 px-2 py-1 transition-colors"
-            >
-              Deselect All ({selectedProspects.length})
-            </button>
-          </div>
-        )}
+            </>
+          )}
+
+          <button 
+            onClick={() => setIsAddModalOpen(true)} 
+            className="bg-green-700 text-white px-4 py-1.5 rounded-md text-xs font-bold hover:bg-green-800 transition-colors shadow-sm flex items-center gap-1 w-full md:w-auto justify-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Prospect
+          </button>
+        </div>
       </div>
 
       {/* Bulk Restore Modal Overlay */}
@@ -423,7 +508,7 @@ export default function ProspectsDirectory() {
 
             <form onSubmit={handleBulkRestore} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-black text-yellow-800 uppercase mb-1">Restoration Justification Reason *</label>
+                <label className="block text-[11px] font-black text-yellow-800 uppercase mb-1">Restoration Reason *</label>
                 <textarea
                   required
                   rows="3"
@@ -465,6 +550,8 @@ export default function ProspectsDirectory() {
         currentStage={transitionDetails?.currentStage}
         stagesList={STAGES}
         onSubmit={handleTransitionSubmit}
+        jobsList={activeJobs}
+        currentJobId={transitionDetails?.currentJobId}
       />
 
       {/* Global Directory DataTable (Desktop) */}
@@ -494,17 +581,20 @@ export default function ProspectsDirectory() {
             <div className="hidden md:block">
               <ResizableTable
                 columns={columns}
-                data={filteredProspects}
+                data={paginatedProspects}
                 sortConfig={sortConfig}
                 onSort={handleSort}
                 onSelectAll={() => {
-                  if (selectedProspects.length === filteredProspects.length) {
-                    setSelectedProspects([]);
+                  if (paginatedProspects.every(p => selectedProspects.includes(p.id))) {
+                    setSelectedProspects(prev => prev.filter(id => !paginatedProspects.some(p => p.id === id)));
                   } else {
-                    setSelectedProspects(filteredProspects.map(p => p.id));
+                    setSelectedProspects(prev => {
+                      const newSelections = paginatedProspects.map(p => p.id).filter(id => !prev.includes(id));
+                      return [...prev, ...newSelections];
+                    });
                   }
                 }}
-                allSelected={selectedProspects.length === filteredProspects.length && filteredProspects.length > 0}
+                allSelected={paginatedProspects.length > 0 && paginatedProspects.every(p => selectedProspects.includes(p.id))}
                 hasCheckbox={true}
               >
                 {(matchItem, idx) => {
@@ -681,7 +771,7 @@ export default function ProspectsDirectory() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
-                          onClick={() => triggerStageTransition(matchItem.id, matchItem.stage, prospect.name)}
+                          onClick={() => triggerStageTransition(matchItem.id, matchItem.stage, prospect.name, matchItem.job_id || matchItem.job?.id)}
                           className="inline-flex items-center gap-1.5 transition-all focus:outline-none text-center mx-auto"
                           title="Click to change pipeline stage"
                         >
@@ -699,7 +789,7 @@ export default function ProspectsDirectory() {
 
             {/* Mobile Card List View */}
             <div className="md:hidden divide-y divide-gray-100">
-              {filteredProspects.map(matchItem => {
+              {paginatedProspects.map(matchItem => {
                 const prospect = matchItem.prospect || {};
                 const job = matchItem.job || {};
                 const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
@@ -876,7 +966,7 @@ export default function ProspectsDirectory() {
                       
                       <div className="flex items-center justify-between gap-1.5 mt-2.5">
                         <button
-                          onClick={() => triggerStageTransition(matchItem.id, matchItem.stage, prospect.name)}
+                          onClick={() => triggerStageTransition(matchItem.id, matchItem.stage, prospect.name, matchItem.job_id || matchItem.job?.id)}
                           className="flex items-center gap-1.5 transition-all focus:outline-none"
                         >
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.bg}`}>
@@ -896,6 +986,99 @@ export default function ProspectsDirectory() {
                 );
               })}
             </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-0">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 ${
+                    currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className={`relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 ${
+                    currentPage === totalPages || totalPages === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 font-semibold">
+                    Showing <span className="font-bold text-green-800">{totalItems === 0 ? 0 : startIndex + 1}</span> to{' '}
+                    <span className="font-bold text-green-800">{Math.min(endIndex, totalItems)}</span> of{' '}
+                    <span className="font-bold text-green-800">{totalItems}</span> results
+                  </p>
+                </div>
+                {totalPages > 1 && (
+                  <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${
+                          currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <span className="sr-only">Previous</span>
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+
+                      {Array.from({ length: totalPages }).map((_, idx) => {
+                        const pageNum = idx + 1;
+                        if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1) {
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              aria-current={currentPage === pageNum ? "page" : undefined}
+                              className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ring-gray-300 focus:z-20 ${
+                                currentPage === pageNum
+                                  ? 'z-10 bg-green-700 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-750'
+                                  : 'text-gray-900 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        }
+                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                          return (
+                            <span key={pageNum} className="relative inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-300">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      })}
+
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${
+                          currentPage === totalPages || totalPages === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <span className="sr-only">Next</span>
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </nav>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
       </div>
@@ -904,9 +1087,24 @@ export default function ProspectsDirectory() {
       <ProspectDrawer 
         matchId={activeMatchId}
         onClose={() => setActiveMatchId(null)}
-        onSaveSuccess={() => {
-          fetchAllProspects(); // reload all prospects when drawer saves changes
+        onSaveSuccess={(updatedMatch) => {
+          if (updatedMatch) {
+            setAllProspects(prev => prev.map(p => p.id === updatedMatch.id ? updatedMatch : p));
+          } else {
+            fetchAllProspects();
+          }
         }}
+      />
+
+      {/* Add Prospect Modal Component */}
+      <AddProspectModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleAddManualProspect}
+        activeJobs={activeJobs}
+        users={users}
+        ALL_STAGES={STAGES.filter(s => s.id !== 'all')}
+        loading={addingProspect}
       />
 
     </div>

@@ -1,7 +1,18 @@
 "use client";
+import { useState, useEffect } from 'react';
 import ActivityTimeline from '../../../components/ActivityTimeline';
 
 export default function ActivityTimelinePage() {
+  const [initialSearch, setInitialSearch] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const searchParam = params.get('search') || "";
+      setInitialSearch(searchParam);
+    }
+  }, []);
+
   return (
     <main>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -16,6 +27,7 @@ export default function ActivityTimelinePage() {
           title="Complete Event Stream" 
           limit={20} 
           enableControls={true}
+          initialSearch={initialSearch}
         />
       </div>
     </main>

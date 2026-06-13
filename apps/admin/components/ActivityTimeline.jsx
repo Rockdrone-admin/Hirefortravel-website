@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { logCritical } from '@repo/logger';
+import { supabase } from '../lib/supabase';
 
 const STAGE_NAME_MAP = {
   'MATCHED': 'Connection Request',
@@ -13,7 +14,8 @@ const STAGE_NAME_MAP = {
   'NOT INTERESTED': 'Not Interested',
   'NO RESPONSE': 'No Response',
   'REJECTED': 'Rejected',
-  'ARCHIVED': 'Req. Not Accepted'
+  'ARCHIVED': 'Archived',
+  'REQ_NOT_ACCEPTED': 'Req. Not Accepted'
 };
 
 const formatDisplayString = (str) => {
@@ -47,20 +49,29 @@ export default function ActivityTimeline({
   userId = null,
   title = "Activity Timeline",
   limit = 50,
-  enableControls = false
+  enableControls = false,
+  initialSearch = "",
+  onViewMore = null
 }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ipLocations, setIpLocations] = useState({});
 
   // Controller states for controls
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [category, setCategory] = useState("");
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(limit);
+
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch);
+      setDebouncedSearch(initialSearch);
+    }
+  }, [initialSearch]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -119,6 +130,37 @@ export default function ActivityTimeline({
   useEffect(() => {
     fetchEvents();
   }, [page, pageSize, category, sortBy, sortOrder, debouncedSearch, entityType, entityId, userId]);
+
+  // Realtime timeline events sync
+  useEffect(() => {
+    if (!supabase) return;
+    const env = typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production';
+
+    const channel = supabase
+      .channel(`timeline-realtime-${entityType || 'global'}-${entityId || 'all'}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activity_events' },
+        (payload) => {
+          if (payload.new.environment !== env) return;
+
+          // If it's a candidate-specific timeline, verify entityType and entityId match
+          if (entityType && payload.new.entity_type !== entityType) return;
+          if (entityId && String(payload.new.entity_id) !== String(entityId)) return;
+
+          // Prepend the new event to the list
+          setEvents(prev => {
+            if (prev.some(e => e.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [entityType, entityId]);
 
   const fetchEvents = async () => {
     try {
@@ -382,6 +424,7 @@ export default function ActivityTimeline({
     }
 
     const fieldLabels = {
+      job_id: 'job position',
       name: 'Candidate Name',
       email: 'Email Address',
       phone: 'Phone Number',
@@ -768,6 +811,19 @@ export default function ActivityTimeline({
               );
             })}
           </ul>
+
+          {onViewMore && totalCount > events.length && (
+            <div className="mt-8 text-center">
+              <button
+                type="button"
+                onClick={onViewMore}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              >
+                View More Activity
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+              </button>
+            </div>
+          )}
 
           {enableControls && totalPages > 1 && (
             <div className="mt-8 flex flex-col sm:flex-row gap-4 items-center justify-between border-t border-gray-150 pt-5 text-sm text-gray-500">

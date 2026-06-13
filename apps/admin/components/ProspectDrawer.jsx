@@ -1,8 +1,13 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import ActivityTimeline from './ActivityTimeline';
+import { supabase } from '../lib/supabase';
+import { ProspectsContext } from '../app/prospects/layout';
 
 export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
+  const context = useContext(ProspectsContext);
+  const activeJobs = context?.activeJobs || [];
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -18,6 +23,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [refreshRemarks, setRefreshRemarks] = useState('');
   const [refreshSuccessCount, setRefreshSuccessCount] = useState(null);
+  const [activeViewers, setActiveViewers] = useState([]);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -141,6 +147,35 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
     fetchProspectDetails();
   }, [matchId]);
 
+  // Realtime Presence sync (collision warning)
+  useEffect(() => {
+    if (!supabase || !matchId) return;
+
+    const username = typeof window !== 'undefined' ? (localStorage.getItem('hirefortravel_admin_username') || 'Recruiter') : 'Recruiter';
+    
+    const channel = supabase.channel(`presence-match-${matchId}`);
+    
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const presenceState = channel.presenceState();
+        const users = Object.values(presenceState)
+          .flatMap(presences => presences.map(p => p.username))
+          .filter(u => u && u !== username);
+        // Deduplicate names
+        setActiveViewers([...new Set(users)]);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ username, online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+      setActiveViewers([]);
+    };
+  }, [matchId]);
+
   const generateOutreachMessage = (prospect, job) => {
     const firstName = prospect.name ? prospect.name.split(' ')[0] : 'there';
     const field = prospect.functional_field || 'your field';
@@ -155,13 +190,26 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
+      const isJobChanged = (match.job_id || '') !== (data?.job_id || '');
+      if (isJobChanged) {
+        if (!match.stage) {
+          alert("Pipeline Stage selection is mandatory when changing the job position.");
+          return;
+        }
+        if (!recruiterRemarks.trim()) {
+          alert("Recruiter Notes / Change Remarks are mandatory when changing the job position.");
+          return;
+        }
+      }
+
       setSaving(true);
 
       const matchUpdates = {
         stage: match.stage,
         manual_score: match.manual_score ? Number(match.manual_score) : null,
         owner: match.owner,
-        tags: Array.isArray(match.tags) ? match.tags : typeof match.tags === 'string' ? match.tags.split(',').map(t => t.trim()) : []
+        tags: Array.isArray(match.tags) ? match.tags : typeof match.tags === 'string' ? match.tags.split(',').map(t => t.trim()) : [],
+        job_id: match.job_id
       };
 
       if (recruiterRemarks.trim()) {
@@ -175,9 +223,12 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
         reason: recruiterRemarks.trim() || null
       };
 
-      const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include',  method: 'PATCH',
+      const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, {
+        credentials: 'include',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload), credentials: 'include' });
+        body: JSON.stringify(payload)
+      });
       const result = await res.json();
       
       if (result.success) {
@@ -253,6 +304,11 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
     factorScores[maxItemIdx].roundedPoints += diff;
   }
 
+  const jobOptions = [...activeJobs];
+  if (data?.job && !jobOptions.some(j => j.id === data.job.id)) {
+    jobOptions.unshift(data.job);
+  }
+
   // 3. Dynamic audit justification logic
   const hasProfileChanged = data?.prospect && (
     (profile.name || '') !== (data.prospect.name || '') ||
@@ -268,7 +324,8 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
 
   const hasMatchFieldsChanged = data && (
     (match.stage || 'IDENTIFIED') !== (data.stage || 'IDENTIFIED') ||
-    (match.manual_score || '') !== (data.manual_score || '')
+    (match.manual_score || '') !== (data.manual_score || '') ||
+    (match.job_id || '') !== (data.job_id || '')
   );
 
   const isJustificationRequired = hasProfileChanged || hasMatchFieldsChanged;
@@ -306,6 +363,24 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
               ) : (
                 <form onSubmit={handleSave} className="flex-1 flex flex-col justify-between">
                   <div className="px-6 py-6 sm:px-8 space-y-8">
+
+                    {activeViewers.length > 0 && (
+                      <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-md">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-rose-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-xs font-bold text-rose-800 uppercase tracking-wider">Recruiter Viewing Conflict</h3>
+                            <div className="mt-1 text-xs text-rose-700 font-semibold leading-relaxed">
+                              <span className="font-extrabold text-rose-900">{activeViewers.join(', ')}</span> is currently viewing/editing this candidate match details. Please coordinate to avoid overwriting each other's changes.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {activeMatchWithOtherOwner && (
                       <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-md">
@@ -475,12 +550,47 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase">Pipeline Stage</label>
+                          <label className={`block text-xs font-bold uppercase ${match.job_id !== data?.job_id ? 'text-rose-600' : 'text-gray-500'}`}>
+                            Job Position{' '}
+                            {match.job_id !== data?.job_id && (
+                              <span className="text-rose-600 font-extrabold">* (Changed)</span>
+                            )}
+                          </label>
                           <select
-                            value={match.stage || 'IDENTIFIED'}
-                            onChange={(e) => setMatch({ ...match, stage: e.target.value })}
-                            className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-green-800 focus:border-green-800 text-sm"
+                            value={match.job_id || ''}
+                            onChange={(e) => {
+                              const newJobId = e.target.value;
+                              const isJobChanged = newJobId !== data?.job_id;
+                              setMatch(prev => ({
+                                ...prev,
+                                job_id: newJobId,
+                                stage: isJobChanged ? '' : data?.stage || 'IDENTIFIED'
+                              }));
+                            }}
+                            className="mt-1 w-full border-gray-300 rounded-md shadow-sm focus:ring-green-800 focus:border-green-800 text-sm bg-white"
                           >
+                            {jobOptions.map(job => (
+                              <option key={job.id} value={job.id}>{job.title}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-bold uppercase ${match.job_id !== data?.job_id ? 'text-rose-600' : 'text-gray-500'}`}>
+                            Pipeline Stage{' '}
+                            {match.job_id !== data?.job_id && (
+                              <span className="text-rose-600 font-extrabold">* (Required)</span>
+                            )}
+                          </label>
+                          <select
+                            value={match.stage || ''}
+                            onChange={(e) => setMatch({ ...match, stage: e.target.value })}
+                            className={`mt-1 w-full border rounded-md shadow-sm text-sm focus:ring-green-800 focus:border-green-800 transition-all duration-250 ${
+                              match.job_id !== data?.job_id && !match.stage
+                                ? 'border-rose-300 bg-rose-50/15 focus:ring-rose-500 focus:border-rose-500' 
+                                : 'border-gray-300 bg-white'
+                            }`}
+                          >
+                            <option value="" disabled>-- Select Stage --</option>
                             <option value="IDENTIFIED">IDENTIFIED</option>
                             <option value="MATCHED">CONNECTION REQUEST</option>
                             <option value="CONTACTED">OUTREACH SENT</option>
@@ -490,7 +600,8 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                             <option value="NO RESPONSE">NO RESPONSE</option>
                             <option value="APPLIED">APPLIED</option>
                             <option value="REJECTED">REJECTED</option>
-                            <option value="ARCHIVED">REQ. NOT ACCEPTED</option>
+                            <option value="REQ_NOT_ACCEPTED">REQ. NOT ACCEPTED</option>
+                            <option value="ARCHIVED">ARCHIVED</option>
                           </select>
                         </div>
                         <div>
@@ -553,7 +664,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                           }`}
                           placeholder={
                             isJustificationRequired 
-                              ? "You have modified critical candidate data. A brief override justification/remark is required to log changes..." 
+                              ? "You have modified critical candidate data. Brief remarks are required to log changes..." 
                               : "Add any recruitment remarks or call summaries here..."
                           }
                           required={isJustificationRequired}
@@ -650,7 +761,16 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-700"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         Prospect Activity & Audit Trail
                       </h3>
-                      <ActivityTimeline entityType="prospect" entityId={profile.id} title="Recent Candidate Timeline" />
+                       <ActivityTimeline 
+                        entityType="prospect" 
+                        entityId={profile.id} 
+                        title="Recent Candidate Timeline" 
+                        limit={10}
+                        onViewMore={() => {
+                          const candidateName = profile.name || '';
+                          window.open(`/settings/activity-timeline?search=${encodeURIComponent(candidateName)}`, '_blank');
+                        }}
+                      />
                     </div>
 
                   </div>
@@ -678,9 +798,13 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
                       </button>
                       <button
                         type="submit"
-                        disabled={saving || (isJustificationRequired && !recruiterRemarks.trim())}
+                        disabled={
+                          saving || 
+                          (isJustificationRequired && !recruiterRemarks.trim()) || 
+                          ((match.job_id !== data?.job_id) && !match.stage)
+                        }
                         className={`px-5 py-2 rounded-md shadow-sm text-sm font-bold text-white transition-colors ${
-                          saving || (isJustificationRequired && !recruiterRemarks.trim())
+                          saving || (isJustificationRequired && !recruiterRemarks.trim()) || ((match.job_id !== data?.job_id) && !match.stage)
                             ? 'bg-gray-400 cursor-not-allowed'
                             : 'bg-green-700 hover:bg-green-800'
                         }`}

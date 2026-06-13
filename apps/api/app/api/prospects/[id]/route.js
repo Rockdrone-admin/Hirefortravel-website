@@ -44,12 +44,13 @@ export async function PATCH(req, { params }) {
     const currentProspect = currentMatch.prospect;
 
     const auditLogs = [];
+    const pFieldsToUpdate = {};
+    const mFieldsToUpdate = {};
     let logType = 'UPDATE_CANDIDATE';
     let logTitle = `Updated candidate ${currentProspect.name}`;
 
     // 2. COMPARE AND AUDIT PROFILE CHANGES
     if (profileUpdates && Object.keys(profileUpdates).length > 0) {
-      const pFieldsToUpdate = {};
       const fields = [
         'name', 'email', 'phone', 'city', 'linkedin_url', 
         'latest_title', 'latest_company', 'total_experience', 'functional_field'
@@ -71,23 +72,21 @@ export async function PATCH(req, { params }) {
           });
         }
       }
-
-      if (Object.keys(pFieldsToUpdate).length > 0) {
-        const { error: pUpdateErr } = await supabase
-          .from('prospects')
-          .update(pFieldsToUpdate)
-          .eq('id', prospectId);
-
-        if (pUpdateErr) {
-          console.error('Failed to update prospect profile details:', pUpdateErr);
-          return NextResponse.json({ success: false, error: 'Failed to update prospect profile details' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
-        }
-      }
     }
 
     // 3. COMPARE AND AUDIT MATCH CHANGES
     if (matchUpdates && Object.keys(matchUpdates).length > 0) {
-      const mFieldsToUpdate = {};
+      // Enforce active_flag consistency with stage
+      if (matchUpdates.stage !== undefined) {
+        matchUpdates.active_flag = (matchUpdates.stage !== 'ARCHIVED');
+      } else if (matchUpdates.active_flag !== undefined) {
+        if (matchUpdates.active_flag === false) {
+          matchUpdates.stage = 'ARCHIVED';
+        } else if (currentMatch.stage === 'ARCHIVED') {
+          matchUpdates.stage = 'MATCHED';
+        }
+      }
+
       const matchFields = [
         'stage', 'manual_score', 'human_notes', 'active_flag', 
         'primary_flag', 'owner', 'tags', 'followup_due_at', 'last_contacted_at'
@@ -138,73 +137,110 @@ export async function PATCH(req, { params }) {
           }
         }
       }
-
-      if (Object.keys(mFieldsToUpdate).length > 0) {
-        const { error: mUpdateErr } = await supabase
-          .from('prospect_matches')
-          .update(mFieldsToUpdate)
-          .eq('id', matchId);
-
-        if (mUpdateErr) {
-          console.error('Failed to update match details:', mUpdateErr);
-          return NextResponse.json({ success: false, error: 'Failed to update prospect match stage' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
-        }
-      }
     }
 
-    // 4. WRITE AUDIT ACTIVITIES (Legacy)
-    if (auditLogs.length > 0) {
-      const { error: auditErr } = await supabase
-        .from('prospect_activities')
-        .insert(auditLogs);
+    // Prepare parallel database write operations
+    let updatedMatch = null;
+    const writePromises = [];
+    let profileUpdatePromise = null;
+    let matchUpdatePromise = null;
 
-      if (auditErr) {
-        console.error('Failed to write override audit trails:', auditErr);
-      }
+    if (Object.keys(pFieldsToUpdate).length > 0) {
+      profileUpdatePromise = supabase
+        .from('prospects')
+        .update(pFieldsToUpdate)
+        .eq('id', prospectId);
+      writePromises.push(profileUpdatePromise);
     }
 
-    // 5. WRITE TO UNIFIED GLOBAL EVENT STORE (activity_events)
+    if (Object.keys(mFieldsToUpdate).length > 0) {
+      matchUpdatePromise = supabase
+        .from('prospect_matches')
+        .update(mFieldsToUpdate)
+        .eq('id', matchId)
+        .select('*, prospect:prospect_id(*), job:job_id(*)')
+        .single();
+      writePromises.push(matchUpdatePromise);
+    }
+
     if (auditLogs.length > 0) {
-      let logType = 'UPDATE_CANDIDATE';
-      let logTitle = `Updated profile for candidate ${currentProspect.name || 'Profile'}`;
+      // 4. WRITE AUDIT ACTIVITIES (Legacy)
+      writePromises.push(
+        supabase.from('prospect_activities').insert(auditLogs)
+      );
+
+      // 5. WRITE TO UNIFIED GLOBAL EVENT STORE (activity_events)
+      let finalLogType = logType;
+      let finalLogTitle = logTitle;
 
       const stageChange = auditLogs.find(log => log.metadata?.field === 'stage');
       const onlyNotesChange = auditLogs.every(log => log.metadata?.field === 'human_notes');
 
       if (stageChange) {
-        logType = 'CHANGE_STAGE';
-        logTitle = `Updated pipeline status for candidate ${currentProspect.name || 'Candidate'}`;
+        finalLogType = 'CHANGE_STAGE';
+        finalLogTitle = `Updated pipeline status for candidate ${currentProspect.name || 'Candidate'}`;
       } else if (onlyNotesChange) {
-        logType = 'ADD_NOTE';
-        logTitle = `Added recruiter remarks for candidate ${currentProspect.name || 'Candidate'}`;
+        finalLogType = 'ADD_NOTE';
+        finalLogTitle = `Added recruiter remarks for candidate ${currentProspect.name || 'Candidate'}`;
       }
 
-      await logActivityEvent({
-        user: authUser,
-        event_type: logType,
-        entity_type: 'prospect',
-        entity_id: prospectId,
-        title: logTitle,
-        description: reason || null,
-        metadata: {
-          job_id: jobId,
-          candidate_name: currentProspect.name,
-          changes: auditLogs.map(l => ({
-            field: l.metadata?.field,
-            prev: l.previous_value,
-            next: l.new_value
-          }))
-        },
-        environment
-      });
+      writePromises.push(
+        logActivityEvent({
+          user: authUser,
+          event_type: finalLogType,
+          entity_type: 'prospect',
+          entity_id: prospectId,
+          title: finalLogTitle,
+          description: reason || null,
+          metadata: {
+            job_id: jobId,
+            candidate_name: currentProspect.name,
+            changes: auditLogs.map(l => ({
+              field: l.metadata?.field,
+              prev: l.previous_value,
+              next: l.new_value
+            }))
+          },
+          environment
+        })
+      );
     }
 
-    // Return the updated match state
-    const { data: updatedMatch } = await supabase
-      .from('prospect_matches')
-      .select('*, prospect:prospect_id(*), job:job_id(*)')
-      .eq('id', matchId)
-      .single();
+    // Execute all database writes in parallel (single roundtrip)
+    if (writePromises.length > 0) {
+      const results = await Promise.all(writePromises);
+
+      if (profileUpdatePromise) {
+        const pIndex = writePromises.indexOf(profileUpdatePromise);
+        const pResult = results[pIndex];
+        if (pResult && pResult.error) {
+          console.error('Failed to update prospect profile details:', pResult.error);
+          return NextResponse.json({ success: false, error: 'Failed to update prospect profile details' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+        }
+      }
+
+      if (matchUpdatePromise) {
+        const mIndex = writePromises.indexOf(matchUpdatePromise);
+        const mResult = results[mIndex];
+        if (mResult && mResult.error) {
+          console.error('Failed to update match details:', mResult.error);
+          return NextResponse.json({ success: false, error: 'Failed to update prospect match stage' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+        }
+        if (mResult && mResult.data) {
+          updatedMatch = mResult.data;
+        }
+      }
+    }
+
+    // Fallback: If no match fields were updated but profile details changed, fetch the match
+    if (!updatedMatch) {
+      const { data: fetchResult } = await supabase
+        .from('prospect_matches')
+        .select('*, prospect:prospect_id(*), job:job_id(*)')
+        .eq('id', matchId)
+        .single();
+      updatedMatch = fetchResult;
+    }
 
     return NextResponse.json({ success: true, data: updatedMatch }, { headers: getCorsHeaders(req.headers.get('origin')) });
 

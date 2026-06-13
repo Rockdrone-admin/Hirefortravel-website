@@ -94,8 +94,39 @@ export async function GET(req) {
       return NextResponse.json({ success: false, error: 'Failed to fetch prospects' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
+    // Fetch recent events to extract remarks for these prospects
+    const prospectIds = matches ? [...new Set(matches.map(m => m.prospect_id))] : [];
+    
+    let activityMap = {};
+    if (prospectIds.length > 0) {
+      const { data: events } = await supabase
+        .from('activity_events')
+        .select('entity_id, title, description, metadata')
+        .eq('entity_type', 'prospect')
+        .in('entity_id', prospectIds.map(String))
+        .eq('environment', environment);
+
+      if (events) {
+        events.forEach(e => {
+          const pid = e.entity_id;
+          if (!activityMap[pid]) activityMap[pid] = [];
+          if (e.description) activityMap[pid].push(e.description);
+          if (e.title) activityMap[pid].push(e.title);
+          if (e.metadata && typeof e.metadata === 'object') {
+            if (e.metadata.reason) activityMap[pid].push(String(e.metadata.reason));
+          }
+        });
+      }
+    }
+
+    // Map matches with past_remarks
+    const matchesWithRemarks = (matches || []).map(m => ({
+      ...m,
+      past_remarks: activityMap[String(m.prospect_id)] || []
+    }));
+
     // Post-filtering & Sorting in JS for joined nested objects (resilient and fast for <1000 rows)
-    let filteredMatches = matches || [];
+    let filteredMatches = matchesWithRemarks;
 
     if (search) {
       const s = search.toLowerCase();
@@ -112,13 +143,21 @@ export async function GET(req) {
 
         if (matchesProfile) return true;
 
-        // 2. Search past remarks (human_notes on ANY match for the same prospect)
+        // 2. Search active or past remarks for this match
+        const matchesCurrentRemarks = m.human_notes?.toLowerCase().includes(s);
+        const matchesPastRemarks = Array.isArray(m.past_remarks) && m.past_remarks.some(r => r.toLowerCase().includes(s));
+        if (matchesCurrentRemarks || matchesPastRemarks) return true;
+
+        // 3. Search human_notes or past_remarks on ANY match for the same prospect
         const prospectId = m.prospect?.id;
         if (!prospectId) return false;
         
-        const matchesRemarks = matches.some(otherMatch => 
+        const matchesRemarks = matchesWithRemarks.some(otherMatch => 
           otherMatch.prospect?.id === prospectId && 
-          otherMatch.human_notes?.toLowerCase().includes(s)
+          (
+            otherMatch.human_notes?.toLowerCase().includes(s) ||
+            (Array.isArray(otherMatch.past_remarks) && otherMatch.past_remarks.some(r => r.toLowerCase().includes(s)))
+          )
         );
 
         return matchesRemarks;
@@ -258,6 +297,7 @@ export async function POST(req) {
         manual_score: score || null,
         human_notes: remarks || null,
         owner: owner || null,
+        active_flag: stage !== 'ARCHIVED',
         environment
       }])
       .select()

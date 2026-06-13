@@ -108,14 +108,20 @@ export default function ResizableTable({
               const isSortable = col.sortable;
               const isSorted = sortConfig && sortConfig.key === col.sortKey;
               const sortIndicator = isSorted ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : '';
+              const isCentered = col.headerClassName?.includes('text-center') || false;
 
               return (
                 <th 
                   key={col.key}
                   onClick={() => isSortable && onSort && onSort(col.sortKey)}
-                  className={`group relative px-4 py-3 select-none ${isSortable ? 'cursor-pointer hover:bg-gray-150 transition-colors' : ''} ${col.headerClassName || ''}`}
+                  className={`group relative pl-3 pr-4 py-3 select-none ${isSortable ? 'cursor-pointer hover:bg-gray-150 transition-colors' : ''} ${col.headerClassName || ''}`}
                 >
-                  <span className="truncate pr-3 block">{col.label} {isSortable && sortIndicator}</span>
+                  <div className={`flex items-center gap-1 min-w-0 ${isCentered ? 'justify-center' : 'justify-start'}`}>
+                    <span className="truncate block">{col.label}</span>
+                    {isSortable && sortIndicator && (
+                      <span className="flex-shrink-0 text-[10px] text-green-700 font-bold">{sortIndicator}</span>
+                    )}
+                  </div>
                   
                   {col.resizable !== false && (
                     <div 

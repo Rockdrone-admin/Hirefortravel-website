@@ -1,6 +1,9 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useContext } from 'react';
 import ProspectDrawer from '../../../components/ProspectDrawer';
+import ResizableTable from '../../../components/ResizableTable';
+import StageTransitionModal from '../../../components/StageTransitionModal';
+import { ProspectsContext } from '../layout';
 
 const renderTimeIdentified = (dateStr) => {
   if (!dateStr) return <span className="text-gray-400 font-semibold">N/A</span>;
@@ -16,7 +19,7 @@ const renderTimeIdentified = (dateStr) => {
     hour12: true 
   });
   return (
-    <div className="flex flex-col text-left">
+    <div className="flex flex-col text-center items-center justify-center">
       <span className="font-bold text-gray-700 text-[11px] leading-tight">{datePart}</span>
       <span className="text-[10px] text-gray-400 font-semibold mt-0.5 leading-none">{timePart}</span>
     </div>
@@ -24,9 +27,17 @@ const renderTimeIdentified = (dateStr) => {
 };
 
 export default function AISourcingPage() {
-  const [activeJobs, setActiveJobs] = useState([]);
+  const {
+    prospects: allProspects,
+    setProspects: setAllProspects,
+    refreshProspects,
+    activeJobs,
+    loading: contextLoading,
+    API_URL
+  } = useContext(ProspectsContext);
+
   const [selectedJobs, setSelectedJobs] = useState([]);
-  const [jobsLoading, setJobsLoading] = useState(true);
+  const jobsLoading = contextLoading;
 
   // Sourcing optimization inspection modal states
   const [inspectionJob, setInspectionJob] = useState(null);
@@ -176,9 +187,12 @@ export default function AISourcingPage() {
     }
   }, [sourcingProgress, sourcingLoading, selectedJobs.length]);
 
-  // Prospects list states
-  const [prospects, setProspects] = useState([]);
-  const [prospectsLoading, setProspectsLoading] = useState(true);
+  const prospects = useMemo(() => {
+    return allProspects.filter(item => item.stage === 'IDENTIFIED');
+  }, [allProspects]);
+
+  const setProspects = setAllProspects;
+  const prospectsLoading = contextLoading;
   const [selectedProspects, setSelectedProspects] = useState([]);
 
   // Filters & Sorting Config
@@ -214,92 +228,61 @@ export default function AISourcingPage() {
   const [activeMatchId, setActiveMatchId] = useState(null);
 
   // Stage Transition Remarks Modal State
-  const [transitionDetails, setTransitionDetails] = useState(null); // { matchId, newStage, candidateName }
-  const [actionRemarks, setActionRemarks] = useState('');
+  const [transitionDetails, setTransitionDetails] = useState(null); // { matchId, targetStage, candidateName, currentStage }
   const [showBulkRefreshModal, setShowBulkRefreshModal] = useState(false);
   const [bulkRefreshRemarks, setBulkRefreshRemarks] = useState('');
   const [refreshSuccessCount, setRefreshSuccessCount] = useState(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  // Columns for ResizableTable
+  const columns = [
+    { key: 'name', label: 'Candidate / Matched Job', sortable: true, sortKey: 'name', defaultWidth: 200 },
+    { key: 'background', label: 'Current Background', sortable: false, defaultWidth: 220 },
+    { key: 'score', label: 'Match Score', sortable: true, sortKey: 'score', defaultWidth: 90, headerClassName: 'text-center' },
+    { key: 'identified', label: 'Date Identified', sortable: true, sortKey: 'identified', defaultWidth: 130, headerClassName: 'text-center' },
+    { key: 'contact', label: 'Contact Info', sortable: false, defaultWidth: 110, headerClassName: 'text-center' },
+    { key: 'actions', label: 'Outreach Actions', sortable: false, defaultWidth: 150, headerClassName: 'text-center' }
+  ];
 
-  // 1. Fetch Active Jobs & Prospects
+  // Initialize selectedJobs once activeJobs are available from layout context
   useEffect(() => {
-    async function loadData() {
-      try {
-        setJobsLoading(true);
-        // Fetch Active Jobs
-        const jobsRes = await fetch(`${API_URL}/api/jobs?status=active&admin=true`, { credentials: 'include' });
-        const jobsResult = await jobsRes.json();
-        if (jobsResult.success && jobsResult.data) {
-          setActiveJobs(jobsResult.data);
-          
-          // Persistent selected jobs preference
-          let savedSelected = null;
-          try {
-            const saved = localStorage.getItem('hirefortravel_sourcing_selectedJobs');
-            if (saved) {
-              savedSelected = JSON.parse(saved);
-            }
-          } catch (e) {
-            console.error('Failed to parse saved selected jobs:', e);
-          }
+    if (!activeJobs || activeJobs.length === 0) return;
 
-          const activeJobIds = jobsResult.data.map(j => j.id);
-
-          if (savedSelected && Array.isArray(savedSelected)) {
-            // Retrieve previously seen jobs to identify brand-new jobs
-            let seenJobs = [];
-            try {
-              const seen = localStorage.getItem('hirefortravel_sourcing_seenJobs');
-              if (seen) {
-                seenJobs = JSON.parse(seen);
-              }
-            } catch (e) {}
-
-            // Newly added active jobs that have never been seen are auto-selected by default
-            const newJobsToSelect = activeJobIds.filter(id => !seenJobs.includes(id));
-            
-            // Keep previously selected jobs that are still active, combined with new jobs
-            const finalSelection = [...new Set([...savedSelected.filter(id => activeJobIds.includes(id)), ...newJobsToSelect])];
-            
-            setSelectedJobs(finalSelection);
-            
-            // Update seen list and selection list in localStorage
-            localStorage.setItem('hirefortravel_sourcing_seenJobs', JSON.stringify([...new Set([...seenJobs, ...activeJobIds])]));
-            localStorage.setItem('hirefortravel_sourcing_selectedJobs', JSON.stringify(finalSelection));
-          } else {
-            // Default first-time load: select all active jobs
-            setSelectedJobs(activeJobIds);
-            localStorage.setItem('hirefortravel_sourcing_selectedJobs', JSON.stringify(activeJobIds));
-            localStorage.setItem('hirefortravel_sourcing_seenJobs', JSON.stringify(activeJobIds));
-          }
-        }
-
-        // Fetch Identified Prospects
-        fetchIdentifiedProspects();
-      } catch (err) {
-        console.error("Failed to load initial sourcing page data:", err);
-      } finally {
-        setJobsLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  async function fetchIdentifiedProspects() {
+    let savedSelected = null;
     try {
-      setProspectsLoading(true);
-      const res = await fetch(`${API_URL}/api/prospects?stage=IDENTIFIED`, { credentials: 'include' });
-      const result = await res.json();
-      if (result.success && result.data) {
-        setProspects(result.data);
+      const saved = localStorage.getItem('hirefortravel_sourcing_selectedJobs');
+      if (saved) {
+        savedSelected = JSON.parse(saved);
       }
-    } catch (err) {
-      console.error("Failed to load identified prospects:", err);
-    } finally {
-      setProspectsLoading(false);
+    } catch (e) {
+      console.error('Failed to parse saved selected jobs:', e);
     }
-  }
+
+    const activeJobIds = activeJobs.map(j => j.id);
+
+    if (savedSelected && Array.isArray(savedSelected)) {
+      let seenJobs = [];
+      try {
+        const seen = localStorage.getItem('hirefortravel_sourcing_seenJobs');
+        if (seen) {
+          seenJobs = JSON.parse(seen);
+        }
+      } catch (e) {}
+
+      const newJobsToSelect = activeJobIds.filter(id => !seenJobs.includes(id));
+      const finalSelection = [...new Set([...savedSelected.filter(id => activeJobIds.includes(id)), ...newJobsToSelect])];
+      
+      setSelectedJobs(finalSelection);
+      
+      localStorage.setItem('hirefortravel_sourcing_seenJobs', JSON.stringify([...new Set([...seenJobs, ...activeJobIds])]));
+      localStorage.setItem('hirefortravel_sourcing_selectedJobs', JSON.stringify(finalSelection));
+    } else {
+      setSelectedJobs(activeJobIds);
+      localStorage.setItem('hirefortravel_sourcing_selectedJobs', JSON.stringify(activeJobIds));
+      localStorage.setItem('hirefortravel_sourcing_seenJobs', JSON.stringify(activeJobIds));
+    }
+  }, [activeJobs]);
+
+  const fetchIdentifiedProspects = refreshProspects;
 
   // 2. Poll sourcing run progress
   useEffect(() => {
@@ -417,17 +400,20 @@ export default function AISourcingPage() {
       });
       const result = await res.json();
       if (result.success) {
-        setProspects(prospects.filter(p => p.id !== matchId));
+        setProspects(prev => prev.map(p => p.id === matchId ? result.data : p));
         setSelectedProspects(selectedProspects.filter(id => id !== matchId));
+      } else {
+        alert(result.error || "Failed to update stage.");
+        throw new Error(result.error || "Failed to update stage.");
       }
     } catch (err) {
       console.error(`Failed to move candidate ${name} to ${newStage}:`, err);
+      throw err;
     }
   };
 
-  const triggerStageTransition = (matchId, newStage, name) => {
-    setTransitionDetails({ matchId, newStage, candidateName: name });
-    setActionRemarks('');
+  const triggerStageTransition = (matchId, targetStage, name) => {
+    setTransitionDetails({ matchId, targetStage, candidateName: name, currentStage: 'IDENTIFIED' });
   };
 
   // 5. Bulk Actions
@@ -454,7 +440,7 @@ export default function AISourcingPage() {
       await Promise.all(promises);
       
       // Update UI state
-      setProspects(prospects.filter(p => !selectedProspects.includes(p.id)));
+      setProspects(prev => prev.map(p => selectedProspects.includes(p.id) ? { ...p, stage: newStage, active_flag: newStage !== 'ARCHIVED' } : p));
       setSelectedProspects([]);
       alert(`Successfully moved ${selectedProspects.length} prospects to ${newStage}!`);
     } catch (err) {
@@ -502,30 +488,51 @@ export default function AISourcingPage() {
     }
   };
 
-  // Filter & Sort math
-  let filteredProspects = prospects.filter(p => {
-    const matchesScore = (p.manual_score || p.ai_score || 0) >= minScore;
-    const matchesJob = filterJobId === 'all' || p.job_id === filterJobId || p.job?.id === filterJobId;
-    return matchesScore && matchesJob;
-  });
+  // Filter & Sort math (useMemo optimized)
+  const filteredProspects = useMemo(() => {
+    const list = prospects.filter(p => {
+      const matchesScore = (p.manual_score || p.ai_score || 0) >= minScore;
+      const matchesJob = filterJobId === 'all' || p.job_id === filterJobId || p.job?.id === filterJobId;
+      return matchesScore && matchesJob;
+    });
 
-  filteredProspects.sort((a, b) => {
-    let comparison = 0;
-    if (sortConfig.key === 'score') {
-      const scoreA = a.manual_score || a.ai_score || 0;
-      const scoreB = b.manual_score || b.ai_score || 0;
-      comparison = scoreA - scoreB;
-    } else if (sortConfig.key === 'identified') {
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-      comparison = dateA - dateB;
-    } else if (sortConfig.key === 'name') {
-      const nameA = a.prospect?.name || '';
-      const nameB = b.prospect?.name || '';
-      comparison = nameA.localeCompare(nameB);
-    }
-    return sortConfig.direction === 'asc' ? comparison : -comparison;
-  });
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (sortConfig.key === 'score') {
+        const scoreA = a.manual_score || a.ai_score || 0;
+        const scoreB = b.manual_score || b.ai_score || 0;
+        comparison = scoreA - scoreB;
+      } else if (sortConfig.key === 'identified') {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        comparison = dateA - dateB;
+      } else if (sortConfig.key === 'name') {
+        const nameA = a.prospect?.name || '';
+        const nameB = b.prospect?.name || '';
+        comparison = nameA.localeCompare(nameB);
+      }
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [prospects, minScore, filterJobId, sortConfig]);
+
+  // Pagination Configuration
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const totalItems = filteredProspects.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  const paginatedProspects = useMemo(() => {
+    return filteredProspects.slice(startIndex, endIndex);
+  }, [filteredProspects, startIndex, endIndex]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [minScore, filterJobId]);
 
   return (
     <div className="space-y-6">
@@ -843,167 +850,144 @@ export default function AISourcingPage() {
         ) : (
           <div>
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100 tracking-wider">
-                    <th className="p-4 w-12 text-center">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedProspects.length === filteredProspects.length}
-                        onChange={() => {
-                          if (selectedProspects.length === filteredProspects.length) {
-                            setSelectedProspects([]);
-                          } else {
-                            setSelectedProspects(filteredProspects.map(p => p.id));
-                          }
-                        }}
-                        className="rounded text-green-700 focus:ring-green-700 border-gray-300 h-4 w-4"
-                      />
-                    </th>
-                    <th 
-                      className="p-4 cursor-pointer hover:bg-gray-100 transition-colors" 
-                      onClick={() => handleSort('name')}
-                    >
-                      Candidate / Matched Job {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
-                    </th>
-                    <th className="p-4">Current Background</th>
-                    <th 
-                      className="p-4 text-center cursor-pointer hover:bg-gray-100 transition-colors" 
-                      onClick={() => handleSort('score')}
-                    >
-                      Match Score {sortConfig.key === 'score' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
-                    </th>
-                    <th 
-                      className="p-4 cursor-pointer hover:bg-gray-100 transition-colors" 
-                      onClick={() => handleSort('identified')}
-                    >
-                      Date Identified {sortConfig.key === 'identified' && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
-                    </th>
-                    <th className="p-4">Contact Info</th>
-                    <th className="p-4 text-right">Outreach Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredProspects.map(matchItem => {
-                    const prospect = matchItem.prospect || {};
-                    const job = matchItem.job || {};
-                    const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
-                    
-                    return (
-                      <tr key={matchItem.id} className="hover:bg-gray-50/50 transition-colors group">
-                        <td className="p-4 text-center">
-                          <input 
-                             type="checkbox" 
-                             checked={selectedProspects.includes(matchItem.id)}
-                             onChange={() => {
-                               if (selectedProspects.includes(matchItem.id)) {
-                                 setSelectedProspects(selectedProspects.filter(id => id !== matchItem.id));
-                               } else {
-                                 setSelectedProspects([...selectedProspects, matchItem.id]);
-                               }
-                             }}
-                             className="rounded text-green-700 focus:ring-green-700 border-gray-300 h-4 w-4"
-                          />
-                        </td>
-                        <td className="p-4 min-w-[200px]">
-                          <div 
-                             onClick={() => setActiveMatchId(matchItem.id)}
-                             className="font-bold text-gray-800 cursor-pointer hover:text-green-800 transition-colors"
+            <div className="hidden md:block">
+              <ResizableTable
+                columns={columns}
+                data={paginatedProspects}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+                onSelectAll={() => {
+                  if (paginatedProspects.every(p => selectedProspects.includes(p.id))) {
+                    setSelectedProspects(prev => prev.filter(id => !paginatedProspects.some(p => p.id === id)));
+                  } else {
+                    setSelectedProspects(prev => {
+                      const newSelections = paginatedProspects.map(p => p.id).filter(id => !prev.includes(id));
+                      return [...prev, ...newSelections];
+                    });
+                  }
+                }}
+                allSelected={paginatedProspects.length > 0 && paginatedProspects.every(p => selectedProspects.includes(p.id))}
+                hasCheckbox={true}
+              >
+                {(matchItem, idx) => {
+                  const prospect = matchItem.prospect || {};
+                  const job = matchItem.job || {};
+                  const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
+                  const isSelected = selectedProspects.includes(matchItem.id);
+                  
+                  return (
+                    <tr key={matchItem.id} className={`hover:bg-gray-50 transition-colors group ${isSelected ? 'bg-green-50/50' : ''}`}>
+                      <td className="px-1 py-3 text-center" style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }}>
+                        <input 
+                           type="checkbox" 
+                           checked={isSelected}
+                           onChange={() => {
+                             if (selectedProspects.includes(matchItem.id)) {
+                               setSelectedProspects(selectedProspects.filter(id => id !== matchItem.id));
+                             } else {
+                               setSelectedProspects([...selectedProspects, matchItem.id]);
+                             }
+                           }}
+                           className="rounded text-green-700 focus:ring-green-700 border-gray-300 h-4 w-4"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div 
+                           onClick={() => setActiveMatchId(matchItem.id)}
+                           className="font-bold text-gray-800 cursor-pointer hover:text-green-800 transition-colors text-xs"
+                        >
+                          {prospect.name}
+                        </div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">Matched for: <span className="font-semibold text-gray-500">{job.title || 'Unknown Position'}</span></div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-xs text-gray-700 font-medium truncate max-w-full" title={prospect.latest_title}>{prospect.latest_title || 'No Title'}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-full" title={`${prospect.latest_company || 'No Company'} • ${prospect.city || 'No Location'}`}>{prospect.latest_company || 'No Company'}{prospect.city ? ` • ${prospect.city}` : ''}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black shadow-sm ${
+                           finalScore >= 90 ? 'bg-green-100 text-green-800' :
+                           finalScore >= 80 ? 'bg-blue-100 text-blue-800' :
+                           finalScore >= 70 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {finalScore}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {renderTimeIdentified(matchItem.created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {prospect.linkedin_url ? (
+                            <a 
+                              href={prospect.linkedin_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-xs"
+                              title="View LinkedIn Profile"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                            </a>
+                          ) : (
+                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed" title="No LinkedIn URL">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                            </div>
+                          )}
+
+                          {prospect.email ? (
+                            <a 
+                              href={`mailto:${prospect.email}`}
+                              className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
+                              title={`Email: ${prospect.email}`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                            </a>
+                          ) : (
+                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed" title="No Email available">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                            </div>
+                          )}
+
+                          {prospect.phone ? (
+                            <a 
+                              href={`tel:${prospect.phone}`}
+                              className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
+                              title={`Phone: ${prospect.phone}`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                            </a>
+                          ) : (
+                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed" title="No Phone available">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => triggerStageTransition(matchItem.id, 'MATCHED', prospect.name)}
+                            className="px-2.5 py-1 bg-green-700 text-white rounded text-xs font-bold hover:bg-green-800 shadow-sm transition-colors"
                           >
-                            {prospect.name}
-                          </div>
-                          <div className="text-xs text-gray-400 mt-0.5">Matched for: <span className="font-semibold text-gray-500">{job.title || 'Unknown Position'}</span></div>
-                        </td>
-                        <td className="p-4 min-w-[220px]">
-                          <div className="text-xs text-gray-700 font-medium truncate max-w-[250px]">{prospect.latest_title || 'No Title'}</div>
-                          <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[250px]">{prospect.latest_company || 'No Company'} &bull; {prospect.city || 'No Location'}</div>
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black shadow-sm ${
-                             finalScore >= 90 ? 'bg-green-100 text-green-800' :
-                             finalScore >= 80 ? 'bg-blue-100 text-blue-800' :
-                             finalScore >= 70 ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {finalScore}%
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          {renderTimeIdentified(matchItem.created_at)}
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-1.5">
-                            {prospect.linkedin_url ? (
-                              <a 
-                                href={prospect.linkedin_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-xs"
-                                title="View LinkedIn Profile"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-                              </a>
-                            ) : (
-                              <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No LinkedIn URL">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-                              </div>
-                            )}
-
-                            {prospect.email ? (
-                              <a 
-                                href={`mailto:${prospect.email}`}
-                                className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
-                                title={`Email: ${prospect.email}`}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                              </a>
-                            ) : (
-                              <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No Email available">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                              </div>
-                            )}
-
-                            {prospect.phone ? (
-                              <a 
-                                href={`tel:${prospect.phone}`}
-                                className="w-6 h-6 flex items-center justify-center rounded bg-green-50 border border-green-200 text-green-700 hover:bg-green-700 hover:text-white transition-all shadow-xs"
-                                title={`Phone: ${prospect.phone}`}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                              </a>
-                            ) : (
-                              <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-50 border border-gray-150 text-gray-300 cursor-not-allowed" title="No Phone available">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => triggerStageTransition(matchItem.id, 'MATCHED', prospect.name)}
-                              className="px-2.5 py-1 bg-green-700 text-white rounded text-xs font-bold hover:bg-green-800 shadow-sm transition-colors"
-                            >
-                              Match
-                            </button>
-                            <button
-                              onClick={() => triggerStageTransition(matchItem.id, 'ARCHIVED', prospect.name)}
-                              className="px-2.5 py-1 border border-gray-200 hover:bg-gray-100 text-gray-500 rounded text-xs transition-colors"
-                            >
-                              Archive
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            Match
+                          </button>
+                          <button
+                            onClick={() => triggerStageTransition(matchItem.id, 'ARCHIVED', prospect.name)}
+                            className="px-2.5 py-1 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded text-xs transition-colors"
+                          >
+                            Archive
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }}
+              </ResizableTable>
             </div>
 
             {/* Mobile Card List View */}
             <div className="md:hidden divide-y divide-gray-100">
-              {filteredProspects.map(matchItem => {
+              {paginatedProspects.map(matchItem => {
                 const prospect = matchItem.prospect || {};
                 const job = matchItem.job || {};
                 const finalScore = matchItem.manual_score || matchItem.ai_score || 0;
@@ -1059,7 +1043,7 @@ export default function AISourcingPage() {
                     </div>
 
                     {/* Meta and Contact Row */}
-                    <div className="flex items-center justify-between gap-3 text-xs text-gray-505">
+                    <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
                       <div className="text-xs text-gray-400 font-medium">
                         Identified: {new Date(matchItem.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </div>
@@ -1129,64 +1113,120 @@ export default function AISourcingPage() {
                 );
               })}
             </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-0">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 ${
+                    currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className={`relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 ${
+                    currentPage === totalPages || totalPages === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 font-semibold">
+                    Showing <span className="font-bold text-green-800">{totalItems === 0 ? 0 : startIndex + 1}</span> to{' '}
+                    <span className="font-bold text-green-800">{Math.min(endIndex, totalItems)}</span> of{' '}
+                    <span className="font-bold text-green-800">{totalItems}</span> results
+                  </p>
+                </div>
+                {totalPages > 1 && (
+                  <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${
+                          currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <span className="sr-only">Previous</span>
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+
+                      {Array.from({ length: totalPages }).map((_, idx) => {
+                        const pageNum = idx + 1;
+                        if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1) {
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              aria-current={currentPage === pageNum ? "page" : undefined}
+                              className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ring-gray-300 focus:z-20 ${
+                                currentPage === pageNum
+                                  ? 'z-10 bg-green-700 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-750'
+                                  : 'text-gray-900 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        }
+                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                          return (
+                            <span key={pageNum} className="relative inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-300">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      })}
+
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${
+                          currentPage === totalPages || totalPages === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <span className="sr-only">Next</span>
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </nav>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
       </div>
 
-      {/* Sourcing Stage Action Remarks Modal */}
-      {transitionDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setTransitionDetails(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200 overflow-hidden animate-scale-up" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-green-800 px-4 py-3 text-white flex justify-between items-center">
-              <h3 className="font-bold text-sm">
-                {transitionDetails.newStage === 'MATCHED' ? 'Add Prospect to CRM Pipeline' : 'Archive Sourced Profile'}
-              </h3>
-              <button onClick={() => setTransitionDetails(null)} className="hover:text-green-200">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-            </div>
-            <div className="p-4 space-y-4 text-xs">
-              <div>
-                <p className="text-gray-500 font-semibold mb-1">Candidate:</p>
-                <p className="font-bold text-gray-800 text-sm">{transitionDetails.candidateName}</p>
-              </div>
-              <div className="bg-gray-50 border border-gray-100 p-2.5 rounded-lg">
-                <p className="text-[10px] text-gray-400 font-bold uppercase">Sourcing Action</p>
-                <p className="font-bold text-green-700 mt-0.5">
-                  {transitionDetails.newStage === 'MATCHED' ? 'Promote to CRM (Connection Request Stage)' : 'Archive Sourced Lead'}
-                </p>
-              </div>
-              <div>
-                <label className="block text-gray-500 font-bold mb-1">Recruiter Remarks / Notes (Optional)</label>
-                <textarea 
-                  value={actionRemarks}
-                  onChange={(e) => setActionRemarks(e.target.value)}
-                  placeholder={
-                    transitionDetails.newStage === 'MATCHED' 
-                      ? "Add initial matching remarks, evaluation call notes, or recruiter overrides..." 
-                      : "Add details or reason for archiving this lead..."
-                  }
-                  className="w-full border-gray-300 rounded focus:ring-green-700 text-xs p-2"
-                  rows="3"
-                  autoFocus
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                <button type="button" onClick={() => setTransitionDetails(null)} className="px-3 py-1.5 border border-gray-300 rounded font-bold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
-                <button 
-                  onClick={async () => {
-                    await handleUpdateStage(transitionDetails.matchId, transitionDetails.newStage, transitionDetails.candidateName, actionRemarks);
-                    setTransitionDetails(null);
-                  }}
-                  className="px-4 py-1.5 bg-green-700 text-white rounded font-bold hover:bg-green-800 transition-colors shadow-sm"
-                >
-                  {transitionDetails.newStage === 'MATCHED' ? 'Match' : 'Archive Lead'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Reusable Stage Transition Modal */}
+      <StageTransitionModal
+        isOpen={!!transitionDetails}
+        onClose={() => setTransitionDetails(null)}
+        candidateName={transitionDetails?.candidateName}
+        currentStage={transitionDetails?.currentStage}
+        targetStage={transitionDetails?.targetStage}
+        stagesList={[
+          { id: 'IDENTIFIED', name: 'Identified (Sourced)' },
+          { id: 'MATCHED', name: 'Connection Request' },
+          { id: 'ARCHIVED', name: 'Archived' }
+        ]}
+        onSubmit={async (selectedNewStage, remarks) => {
+          await handleUpdateStage(transitionDetails.matchId, selectedNewStage, transitionDetails.candidateName, remarks);
+          setTransitionDetails(null);
+        }}
+      />
 
       {/* Bulk Refresh Justification Modal */}
       {showBulkRefreshModal && (
@@ -1225,7 +1265,7 @@ export default function AISourcingPage() {
                 <textarea 
                   value={bulkRefreshRemarks}
                   onChange={(e) => setBulkRefreshRemarks(e.target.value)}
-                  placeholder="Provide a mandatory reason/justification for this bulk refresh..."
+                  placeholder="Remarks are mandatory for bulk refresh action..."
                   className="w-full border-gray-300 rounded focus:ring-green-700 text-xs p-2 bg-white"
                   rows="3"
                   autoFocus
@@ -1284,8 +1324,16 @@ export default function AISourcingPage() {
       <ProspectDrawer 
         matchId={activeMatchId}
         onClose={() => setActiveMatchId(null)}
-        onSaveSuccess={() => {
-          fetchIdentifiedProspects(); // reload identified prospects when edits occur
+        onSaveSuccess={(updatedMatch) => {
+          if (updatedMatch) {
+            if (updatedMatch.stage !== 'IDENTIFIED' || !updatedMatch.active_flag) {
+              setProspects(prev => prev.filter(p => p.id !== updatedMatch.id));
+            } else {
+              setProspects(prev => prev.map(p => p.id === updatedMatch.id ? updatedMatch : p));
+            }
+          } else {
+            fetchIdentifiedProspects();
+          }
         }}
       />
 
