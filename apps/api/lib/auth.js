@@ -74,21 +74,33 @@ export async function requireAuth(requiredPermission = null) {
 
     // Permission check
     if (requiredPermission) {
-      const { data: roleData, error: roleError } = await supabase
-        .from('role_permissions')
-        .select('permissions')
-        .eq('role', user.role)
-        .eq('environment', environment)
-        .maybeSingle();
+      const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[user.role] || {};
+      const userPermissions = user.permissions || {};
+      
+      // If permission is already granted by default or directly on the user, we can skip DB role permissions lookup
+      const isAlreadyGranted = defaultPermissions[requiredPermission] === true || userPermissions[requiredPermission] === true;
+      
+      let dbPermissions = {};
+      if (!isAlreadyGranted) {
+        const { data: roleData, error: roleError } = await supabase
+          .from('role_permissions')
+          .select('permissions')
+          .eq('role', user.role)
+          .eq('environment', environment)
+          .maybeSingle();
 
-      if (roleError) {
-        console.error('Role permission lookup failed:', roleError);
+        if (roleError) {
+          console.error('Role permission lookup failed:', roleError);
+        }
+        if (roleData?.permissions) {
+          dbPermissions = roleData.permissions;
+        }
       }
 
       const effectivePermissions = {
-        ...(DEFAULT_ROLE_PERMISSIONS[user.role] || {}),
-        ...(roleData?.permissions || {}),
-        ...(user.permissions || {})
+        ...defaultPermissions,
+        ...dbPermissions,
+        ...userPermissions
       };
 
       if (!effectivePermissions[requiredPermission]) {

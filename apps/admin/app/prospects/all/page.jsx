@@ -65,12 +65,15 @@ export default function ProspectsDirectory() {
     activeJobs,
     users,
     loading: contextLoading,
-    API_URL
+    API_URL,
+    prospectsCache,
+    setProspectsCache
   } = useContext(ProspectsContext);
 
   const [prospects, setProspects] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [prospectsLoading, setProspectsLoading] = useState(true);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const loading = contextLoading || prospectsLoading || actionLoading;
   const setLoading = setActionLoading;
@@ -108,11 +111,9 @@ export default function ProspectsDirectory() {
     setCurrentPage(1);
   }, [selectedJobId, selectedStage]);
 
-  // Fetch candidates from backend
-  const fetchAllProspects = async () => {
+  const fetchAllProspects = async (bypassCache = false) => {
     if (!API_URL) return;
     try {
-      setProspectsLoading(true);
       const offset = (currentPage - 1) * pageSize;
       
       let sortBy = 'created_at';
@@ -139,16 +140,38 @@ export default function ProspectsDirectory() {
         params.append('search', debouncedSearchQuery);
       }
 
+      const cacheKey = `all_${params.toString()}`;
+      const cached = prospectsCache[cacheKey];
+      if (cached && !bypassCache) {
+        setProspects(cached.data);
+        setTotalItems(cached.count);
+        setProspectsLoading(false);
+        setIsRevalidating(true);
+      } else if (bypassCache) {
+        setIsRevalidating(true);
+      } else {
+        setProspectsLoading(true);
+        setIsRevalidating(false);
+      }
+
       const res = await fetch(`${API_URL}/api/prospects?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
       const result = await res.json();
       if (result.success && result.data) {
         setProspects(result.data);
         setTotalItems(result.count || 0);
+        setProspectsCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            data: result.data,
+            count: result.count || 0
+          }
+        }));
       }
     } catch (err) {
       console.error("Failed to fetch all prospects:", err);
     } finally {
       setProspectsLoading(false);
+      setIsRevalidating(false);
     }
   };
 
@@ -171,7 +194,8 @@ export default function ProspectsDirectory() {
           const itemEnv = payload.new?.environment || payload.old?.environment;
           if (itemEnv && itemEnv !== env) return;
 
-          fetchAllProspects();
+          setProspectsCache({});
+          fetchAllProspects(true);
         }
       )
       .subscribe();
@@ -192,8 +216,9 @@ export default function ProspectsDirectory() {
       });
       const result = await res.json();
       if (result.success) {
+        setProspectsCache({});
         setIsAddModalOpen(false);
-        await fetchAllProspects();
+        await fetchAllProspects(true);
       } else {
         alert(result.error || "Failed to create prospect manually.");
       }
@@ -246,7 +271,8 @@ export default function ProspectsDirectory() {
       });
       const result = await res.json();
       if (result.success) {
-        setAllProspects(prev => prev.map(p => p.id === matchId ? { ...p, human_notes: notesText } : p));
+        setProspectsCache({});
+        setProspects(prev => prev.map(p => p.id === matchId ? { ...p, human_notes: notesText } : p));
       } else {
         alert(result.error || 'Failed to save notes');
       }
@@ -281,21 +307,26 @@ export default function ProspectsDirectory() {
     });
     const result = await res.json();
     if (result.success) {
-      // Update local list
-      setAllProspects(prev => prev.map(p => {
-        if (p.id === transitionDetails.matchId) {
-          const updatedJob = activeJobs.find(j => j.id === selectedJobId) || p.job;
-          return { 
-            ...p, 
-            stage: selectedNewStage,
-            job_id: selectedJobId || p.job_id,
-            job: updatedJob,
-            active_flag: selectedNewStage !== 'ARCHIVED',
-            human_notes: remarks.trim() || p.human_notes
-          };
-        }
-        return p;
-      }));
+      setProspectsCache({});
+      if (selectedNewStage === 'ARCHIVED' || (selectedStage && selectedStage !== 'all' && selectedStage !== selectedNewStage)) {
+        setProspects(prev => prev.filter(p => p.id !== transitionDetails.matchId));
+        setTotalItems(prev => Math.max(0, prev - 1));
+      } else {
+        setProspects(prev => prev.map(p => {
+          if (p.id === transitionDetails.matchId) {
+            const updatedJob = activeJobs.find(j => j.id === selectedJobId) || p.job;
+            return { 
+              ...p, 
+              stage: selectedNewStage,
+              job_id: selectedJobId || p.job_id,
+              job: updatedJob,
+              active_flag: selectedNewStage !== 'ARCHIVED',
+              human_notes: remarks.trim() || p.human_notes
+            };
+          }
+          return p;
+        }));
+      }
       setTransitionDetails(null);
     } else {
       throw new Error(result.error || 'Failed to update candidate pipeline stage.');
@@ -533,7 +564,15 @@ export default function ProspectsDirectory() {
         <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50/30">
           <div className="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <h3 className="text-sm font-black text-gray-800">Global Prospects Directory <span className="text-gray-400 font-medium text-xs ml-1">({filteredProspects.length} candidates)</span></h3>
+            <h3 className="text-sm font-black text-gray-800 flex items-center gap-2">
+              <span>Global Prospects Directory</span>
+              <span className="text-gray-400 font-medium text-xs font-semibold">({filteredProspects.length} candidates)</span>
+              {isRevalidating && (
+                <span className="inline-flex items-center text-[10px] text-green-700 bg-green-50 font-bold px-1.5 py-0.5 rounded animate-pulse">
+                  Refreshing...
+                </span>
+              )}
+            </h3>
           </div>
           <span className="text-[10px] text-gray-400 italic hidden md:inline">Drag column borders to resize columns</span>
         </div>
@@ -1060,10 +1099,16 @@ export default function ProspectsDirectory() {
         matchId={activeMatchId}
         onClose={() => setActiveMatchId(null)}
         onSaveSuccess={(updatedMatch) => {
+          setProspectsCache({});
           if (updatedMatch) {
-            setAllProspects(prev => prev.map(p => p.id === updatedMatch.id ? updatedMatch : p));
+            if (updatedMatch.stage === 'ARCHIVED' || !updatedMatch.active_flag || (selectedStage && selectedStage !== 'all' && selectedStage !== updatedMatch.stage)) {
+              setProspects(prev => prev.filter(p => p.id !== updatedMatch.id));
+              setTotalItems(prev => Math.max(0, prev - 1));
+            } else {
+              setProspects(prev => prev.map(p => p.id === updatedMatch.id ? updatedMatch : p));
+            }
           } else {
-            fetchAllProspects();
+            fetchAllProspects(true);
           }
         }}
       />

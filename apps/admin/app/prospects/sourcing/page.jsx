@@ -32,7 +32,9 @@ export default function AISourcingPage() {
     activeJobs,
     setActiveJobs,
     loading: contextLoading,
-    API_URL
+    API_URL,
+    prospectsCache,
+    setProspectsCache
   } = useContext(ProspectsContext);
 
   const [selectedJobs, setSelectedJobs] = useState([]);
@@ -189,6 +191,7 @@ export default function AISourcingPage() {
   const [prospects, setProspects] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [prospectsLoading, setProspectsLoading] = useState(true);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [selectedProspects, setSelectedProspects] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
@@ -205,11 +208,9 @@ export default function AISourcingPage() {
     setCurrentPage(1);
   }, [filterJobId, minScore]);
 
-  // Fetch candidates from backend
-  const fetchIdentifiedProspects = async () => {
+  const fetchIdentifiedProspects = async (bypassCache = false) => {
     if (!API_URL) return;
     try {
-      setProspectsLoading(true);
       const offset = (currentPage - 1) * pageSize;
       
       let sortBy = 'created_at';
@@ -234,16 +235,38 @@ export default function AISourcingPage() {
         params.append('minScore', String(minScore));
       }
 
+      const cacheKey = `sourcing_${params.toString()}`;
+      const cached = prospectsCache[cacheKey];
+      if (cached && !bypassCache) {
+        setProspects(cached.data);
+        setTotalItems(cached.count);
+        setProspectsLoading(false);
+        setIsRevalidating(true);
+      } else if (bypassCache) {
+        setIsRevalidating(true);
+      } else {
+        setProspectsLoading(true);
+        setIsRevalidating(false);
+      }
+
       const res = await fetch(`${API_URL}/api/prospects?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
       const result = await res.json();
       if (result.success && result.data) {
         setProspects(result.data);
         setTotalItems(result.count || 0);
+        setProspectsCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            data: result.data,
+            count: result.count || 0
+          }
+        }));
       }
     } catch (err) {
       console.error("Failed to fetch identified prospects:", err);
     } finally {
       setProspectsLoading(false);
+      setIsRevalidating(false);
     }
   };
 
@@ -266,7 +289,8 @@ export default function AISourcingPage() {
           const itemEnv = payload.new?.environment || payload.old?.environment;
           if (itemEnv && itemEnv !== env) return;
 
-          fetchIdentifiedProspects();
+          setProspectsCache({});
+          fetchIdentifiedProspects(true);
         }
       )
       .subscribe();
@@ -476,7 +500,9 @@ export default function AISourcingPage() {
       });
       const result = await res.json();
       if (result.success) {
-        setProspects(prev => prev.map(p => p.id === matchId ? result.data : p));
+        setProspectsCache({});
+        setProspects(prev => prev.filter(p => p.id !== matchId));
+        setTotalItems(prev => Math.max(0, prev - 1));
         setSelectedProspects(selectedProspects.filter(id => id !== matchId));
       } else {
         alert(result.error || "Failed to update stage.");
@@ -516,7 +542,9 @@ export default function AISourcingPage() {
       await Promise.all(promises);
       
       // Update UI state
-      setProspects(prev => prev.map(p => selectedProspects.includes(p.id) ? { ...p, stage: newStage, active_flag: newStage !== 'ARCHIVED' } : p));
+      setProspectsCache({});
+      setProspects(prev => prev.filter(p => !selectedProspects.includes(p.id)));
+      setTotalItems(prev => Math.max(0, prev - selectedProspects.length));
       setSelectedProspects([]);
       alert(`Successfully moved ${selectedProspects.length} prospects to ${newStage}!`);
     } catch (err) {
@@ -556,7 +584,8 @@ export default function AISourcingPage() {
       const countRefreshed = selectedProspects.length;
       setSelectedProspects([]);
       setRefreshSuccessCount(countRefreshed);
-      await fetchIdentifiedProspects();
+      setProspectsCache({});
+      await fetchIdentifiedProspects(true);
     } catch (err) {
       alert("Bulk refresh failed: " + err.message);
     } finally {
@@ -777,7 +806,14 @@ export default function AISourcingPage() {
         {/* Table Filters & Toolbar */}
         <div className="p-6 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gray-50/50">
           <div>
-            <h2 className="text-base font-bold text-gray-800">Discovered Prospects</h2>
+            <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+              <span>Discovered Prospects</span>
+              {isRevalidating && (
+                <span className="inline-flex items-center text-[10px] text-green-700 bg-green-50 font-bold px-1.5 py-0.5 rounded animate-pulse">
+                  Refreshing...
+                </span>
+              )}
+            </h2>
             <p className="text-xs text-gray-400 mt-0.5">Below are passive candidates matching your job filters. Once reviewed and matched, they are moved to the CRM for outreach.</p>
           </div>
           
@@ -1358,14 +1394,16 @@ export default function AISourcingPage() {
         matchId={activeMatchId}
         onClose={() => setActiveMatchId(null)}
         onSaveSuccess={(updatedMatch) => {
+          setProspectsCache({});
           if (updatedMatch) {
             if (updatedMatch.stage !== 'IDENTIFIED' || !updatedMatch.active_flag) {
               setProspects(prev => prev.filter(p => p.id !== updatedMatch.id));
+              setTotalItems(prev => Math.max(0, prev - 1));
             } else {
               setProspects(prev => prev.map(p => p.id === updatedMatch.id ? updatedMatch : p));
             }
           } else {
-            fetchIdentifiedProspects();
+            fetchIdentifiedProspects(true);
           }
         }}
       />

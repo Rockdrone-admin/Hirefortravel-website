@@ -10,6 +10,7 @@ export default function ProspectsLayout({ children }) {
   const [activeJobs, setActiveJobs] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [prospectsCache, setProspectsCache] = useState({});
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
@@ -60,7 +61,7 @@ export default function ProspectsLayout({ children }) {
   };
 
   return (
-    <ProspectsContext.Provider value={{ activeJobs, setActiveJobs, users, loading, API_URL }}>
+    <ProspectsContext.Provider value={{ activeJobs, setActiveJobs, users, loading, API_URL, prospectsCache, setProspectsCache }}>
       <div className="space-y-6">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-5">

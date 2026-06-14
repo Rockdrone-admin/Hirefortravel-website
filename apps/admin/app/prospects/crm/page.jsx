@@ -65,13 +65,16 @@ export default function ProspectsCRMBoard() {
     activeJobs,
     users,
     loading: contextLoading,
-    API_URL
+    API_URL,
+    prospectsCache,
+    setProspectsCache
   } = useContext(ProspectsContext);
 
   const [prospects, setProspects] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [stageCounts, setStageCounts] = useState({});
   const [prospectsLoading, setProspectsLoading] = useState(true);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const loading = contextLoading || prospectsLoading || actionLoading;
   const setLoading = setActionLoading;
@@ -159,7 +162,6 @@ export default function ProspectsCRMBoard() {
   const fetchCRMProspects = async () => {
     if (!API_URL) return;
     try {
-      setProspectsLoading(true);
       const offset = (currentPage - 1) * pageSize;
       
       let sortBy = 'created_at';
@@ -195,6 +197,21 @@ export default function ProspectsCRMBoard() {
         params.append('search', debouncedSearchQuery);
       }
 
+      const cacheKey = `crm_${params.toString()}`;
+      const cached = prospectsCache[cacheKey];
+      if (cached) {
+        setProspects(cached.data);
+        setTotalItems(cached.count);
+        if (cached.stageCounts) {
+          setStageCounts(cached.stageCounts);
+        }
+        setProspectsLoading(false);
+        setIsRevalidating(true);
+      } else {
+        setProspectsLoading(true);
+        setIsRevalidating(false);
+      }
+
       const res = await fetch(`${API_URL}/api/prospects?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
       const result = await res.json();
       if (result.success && result.data) {
@@ -203,11 +220,20 @@ export default function ProspectsCRMBoard() {
         if (result.stageCounts) {
           setStageCounts(result.stageCounts);
         }
+        setProspectsCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            data: result.data,
+            count: result.count || 0,
+            stageCounts: result.stageCounts
+          }
+        }));
       }
     } catch (err) {
       console.error("Failed to fetch CRM prospects:", err);
     } finally {
       setProspectsLoading(false);
+      setIsRevalidating(false);
     }
   };
 
@@ -230,7 +256,8 @@ export default function ProspectsCRMBoard() {
           const itemEnv = payload.new?.environment || payload.old?.environment;
           if (itemEnv && itemEnv !== env) return;
 
-          fetchCRMProspects();
+          setProspectsCache({});
+          fetchCRMProspects(true);
         }
       )
       .subscribe();
@@ -257,8 +284,10 @@ export default function ProspectsCRMBoard() {
       });
       const result = await res.json();
       if (result.success) {
-        if (newStage === 'ARCHIVED') {
+        setProspectsCache({});
+        if (newStage === 'ARCHIVED' || newStage !== activeStageTab) {
           setProspects(prev => prev.filter(p => p.id !== matchId));
+          setTotalItems(prev => Math.max(0, prev - 1));
         } else {
           setProspects(prev => prev.map(p => p.id === matchId ? { 
             ...p, 
@@ -290,6 +319,7 @@ export default function ProspectsCRMBoard() {
       });
       const result = await res.json();
       if (result.success) {
+        setProspectsCache({});
         setProspects(prev => prev.map(p => p.id === matchId ? { ...p, human_notes: notesText } : p));
       } else {
         alert(result.error || 'Failed to save notes');
@@ -314,9 +344,10 @@ export default function ProspectsCRMBoard() {
       });
       const result = await res.json();
       if (result.success) {
+        setProspectsCache({});
         setIsAddModalOpen(false);
         setLoading(true);
-        await fetchCRMProspects();
+        await fetchCRMProspects(true);
         setLoading(false);
       } else {
         alert(result.error || "Failed to create prospect manually.");
@@ -375,11 +406,12 @@ export default function ProspectsCRMBoard() {
         });
 
         await Promise.all(promises);
+        setProspectsCache({});
         alert(`Bulk update complete!`);
       }
       setSelectedProspects([]);
       setBulkAction(''); setBulkReason(''); setBulkOwner(''); setBulkTags('');
-      setLoading(true); await fetchCRMProspects(); setLoading(false);
+      setLoading(true); await fetchCRMProspects(true); setLoading(false);
     } catch (err) {
       alert("Bulk update failed: " + err.message);
     } finally {
@@ -624,7 +656,15 @@ export default function ProspectsCRMBoard() {
         <div className={`px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-${activeStageDetails.color}-50/30`}>
           <div className="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-${activeStageDetails.color}-600`} dangerouslySetInnerHTML={{__html: `<path d="${activeStageDetails.icon}"/>`}} />
-            <h3 className="text-sm font-black text-gray-800">{activeStageDetails.name} <span className="text-gray-400 font-medium text-xs ml-1">({displayProspects.length} candidates)</span></h3>
+            <h3 className="text-sm font-black text-gray-800 flex items-center gap-2">
+              <span>{activeStageDetails.name}</span>
+              <span className="text-gray-400 font-medium text-xs font-semibold">({displayProspects.length} candidates)</span>
+              {isRevalidating && (
+                <span className="inline-flex items-center text-[10px] text-green-700 bg-green-50 font-bold px-1.5 py-0.5 rounded animate-pulse">
+                  Refreshing...
+                </span>
+              )}
+            </h3>
           </div>
         </div>
 
@@ -1276,14 +1316,16 @@ export default function ProspectsCRMBoard() {
         matchId={activeMatchId} 
         onClose={() => setActiveMatchId(null)} 
         onSaveSuccess={(updatedMatch) => {
+          setProspectsCache({});
           if (updatedMatch) {
-            if (updatedMatch.stage === 'IDENTIFIED' || updatedMatch.stage === 'ARCHIVED' || !updatedMatch.active_flag) {
+            if (updatedMatch.stage === 'IDENTIFIED' || updatedMatch.stage === 'ARCHIVED' || !updatedMatch.active_flag || updatedMatch.stage !== activeStageTab) {
               setProspects(prev => prev.filter(p => p.id !== updatedMatch.id));
+              setTotalItems(prev => Math.max(0, prev - 1));
             } else {
               setProspects(prev => prev.map(p => p.id === updatedMatch.id ? updatedMatch : p));
             }
           } else {
-            fetchCRMProspects();
+            fetchCRMProspects(true);
           }
         }} 
       />
