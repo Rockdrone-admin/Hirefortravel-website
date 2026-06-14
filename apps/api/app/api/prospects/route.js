@@ -23,13 +23,48 @@ export async function GET(req) {
     const hasEmail = searchParams.get('hasEmail') === 'true';
     const hasPhone = searchParams.get('hasPhone') === 'true';
     const activeParam = searchParams.get('active');
+    const minScore = searchParams.get('minScore');
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy') || 'created_at';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
+    // Pagination parameters
+    const limit = parseInt(searchParams.get('limit')) || 1000;
+    const offset = parseInt(searchParams.get('offset')) || 0;
+
     if (!supabase) {
       return NextResponse.json({ success: false, error: 'Database connection not initialized' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
+    }
+
+    // Pre-filter prospects if needed (for nested checks like profile fields search, linkedin, email, phone)
+    const needsProspectFilter = search || hasLinkedin || hasEmail || hasPhone;
+    let filteredProspectIds = null;
+
+    if (needsProspectFilter) {
+      let pQuery = supabase
+        .from('prospects')
+        .select('id')
+        .eq('environment', environment);
+
+      if (search) {
+        pQuery = pQuery.or(`name.ilike.%${search}%,latest_company.ilike.%${search}%,latest_title.ilike.%${search}%,functional_field.ilike.%${search}%,city.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
+      }
+      if (hasLinkedin) {
+        pQuery = pQuery.not('linkedin_url', 'is', null);
+      }
+      if (hasEmail) {
+        pQuery = pQuery.not('email', 'is', null);
+      }
+      if (hasPhone) {
+        pQuery = pQuery.not('phone', 'is', null);
+      }
+
+      const { data: matchedProspects, error: pError } = await pQuery;
+      if (pError) {
+        console.error('Failed to pre-filter prospects:', pError);
+      }
+      filteredProspectIds = matchedProspects ? matchedProspects.map(p => p.id) : [];
     }
 
     // Build the query joining prospect_matches, prospects, and jobs
@@ -68,7 +103,7 @@ export async function GET(req) {
           title,
           company_name
         )
-      `)
+      `, { count: 'exact' })
       .eq('environment', environment);
 
     // Apply filters
@@ -76,130 +111,81 @@ export async function GET(req) {
       const stages = stage.split(',');
       query = query.in('stage', stages);
     }
-    if (jobId) {
+    if (jobId && jobId !== 'all') {
       query = query.eq('job_id', jobId);
     }
-    if (owner) {
+    if (owner && owner !== 'all') {
       query = query.eq('owner', owner);
     }
     if (activeParam !== null && activeParam !== undefined) {
       query = query.eq('active_flag', activeParam === 'true');
     }
+    if (minScore) {
+      query = query.gte('ai_score', parseInt(minScore));
+    }
+
+    // Apply the prospect-specific filters
+    if (needsProspectFilter) {
+      if (filteredProspectIds.length === 0) {
+        if (search) {
+          query = query.or(`human_notes.ilike.%${search}%,owner.ilike.%${search}%`);
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      } else {
+        if (search) {
+          query = query.or(`prospect_id.in.(${filteredProspectIds.join(',')}),human_notes.ilike.%${search}%,owner.ilike.%${search}%`);
+        } else {
+          query = query.in('prospect_id', filteredProspectIds);
+        }
+      }
+    }
+
+    // Sorting
+    if (sortBy === 'newest' || sortBy === 'created_at') {
+      query = query.order('created_at', { ascending: sortOrder === 'asc' });
+    } else if (sortBy === 'score' || sortBy === 'ai_score') {
+      query = query.order('ai_score', { ascending: sortOrder === 'asc', nullsFirst: false });
+    } else if (sortBy === 'name') {
+      query = query.order('name', { referencedTable: 'prospect', ascending: sortOrder === 'asc' });
+    } else if (sortBy === 'experience') {
+      query = query.order('total_experience', { referencedTable: 'prospect', ascending: sortOrder === 'asc' });
+    } else if (sortBy === 'duration') {
+      query = query.order('created_at', { ascending: sortOrder === 'asc' });
+    } else {
+      query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+    }
+
+    // Pagination range
+    query = query.range(offset, offset + limit - 1);
 
     // Perform the fetch
-    const { data: matches, error } = await query;
+    const { data: matches, count, error } = await query;
 
     if (error) {
       console.error('Failed to query prospects:', error);
       return NextResponse.json({ success: false, error: 'Failed to fetch prospects' }, { status: 500, headers: getCorsHeaders(req.headers.get('origin')) });
     }
 
-    // Fetch recent events to extract remarks for these prospects
-    const prospectIds = matches ? [...new Set(matches.map(m => m.prospect_id))] : [];
-    
-    let activityMap = {};
-    if (prospectIds.length > 0) {
-      const { data: events } = await supabase
-        .from('activity_events')
-        .select('entity_id, title, description, metadata')
-        .eq('entity_type', 'prospect')
-        .in('entity_id', prospectIds.map(String))
-        .eq('environment', environment);
+    // Fetch stage counts for this environment to support tab counters
+    const { data: countData } = await supabase
+      .from('prospect_matches')
+      .select('stage')
+      .eq('environment', environment);
 
-      if (events) {
-        events.forEach(e => {
-          const pid = e.entity_id;
-          if (!activityMap[pid]) activityMap[pid] = [];
-          if (e.description) activityMap[pid].push(e.description);
-          if (e.title) activityMap[pid].push(e.title);
-          if (e.metadata && typeof e.metadata === 'object') {
-            if (e.metadata.reason) activityMap[pid].push(String(e.metadata.reason));
-          }
-        });
-      }
-    }
-
-    // Map matches with past_remarks
-    const matchesWithRemarks = (matches || []).map(m => ({
-      ...m,
-      past_remarks: activityMap[String(m.prospect_id)] || []
-    }));
-
-    // Post-filtering & Sorting in JS for joined nested objects (resilient and fast for <1000 rows)
-    let filteredMatches = matchesWithRemarks;
-
-    if (search) {
-      const s = search.toLowerCase();
-      filteredMatches = filteredMatches.filter(m => {
-        // 1. Basic profile info and location/contact fields
-        const matchesProfile = 
-          m.prospect?.name?.toLowerCase().includes(s) ||
-          m.prospect?.latest_company?.toLowerCase().includes(s) ||
-          m.prospect?.latest_title?.toLowerCase().includes(s) ||
-          m.prospect?.functional_field?.toLowerCase().includes(s) ||
-          m.prospect?.city?.toLowerCase().includes(s) ||
-          m.prospect?.email?.toLowerCase().includes(s) ||
-          m.prospect?.phone?.toLowerCase().includes(s);
-
-        if (matchesProfile) return true;
-
-        // 2. Search active or past remarks for this match
-        const matchesCurrentRemarks = m.human_notes?.toLowerCase().includes(s);
-        const matchesPastRemarks = Array.isArray(m.past_remarks) && m.past_remarks.some(r => r.toLowerCase().includes(s));
-        if (matchesCurrentRemarks || matchesPastRemarks) return true;
-
-        // 3. Search human_notes or past_remarks on ANY match for the same prospect
-        const prospectId = m.prospect?.id;
-        if (!prospectId) return false;
-        
-        const matchesRemarks = matchesWithRemarks.some(otherMatch => 
-          otherMatch.prospect?.id === prospectId && 
-          (
-            otherMatch.human_notes?.toLowerCase().includes(s) ||
-            (Array.isArray(otherMatch.past_remarks) && otherMatch.past_remarks.some(r => r.toLowerCase().includes(s)))
-          )
-        );
-
-        return matchesRemarks;
+    const stageCounts = {};
+    if (countData) {
+      countData.forEach(m => {
+        stageCounts[m.stage] = (stageCounts[m.stage] || 0) + 1;
       });
     }
 
-    if (hasLinkedin) {
-      filteredMatches = filteredMatches.filter(m => !!m.prospect?.linkedin_url);
-    }
-    if (hasEmail) {
-      filteredMatches = filteredMatches.filter(m => !!m.prospect?.email);
-    }
-    if (hasPhone) {
-      filteredMatches = filteredMatches.filter(m => !!m.prospect?.phone);
-    }
-
-    // Sorting
-    filteredMatches.sort((a, b) => {
-      let valA, valB;
-      if (sortBy === 'newest' || sortBy === 'created_at') {
-        valA = new Date(a.created_at).getTime();
-        valB = new Date(b.created_at).getTime();
-      } else if (sortBy === 'score' || sortBy === 'ai_score') {
-        valA = a.ai_score || 0;
-        valB = b.ai_score || 0;
-      } else if (sortBy === 'name') {
-        valA = a.prospect?.name || '';
-        valB = b.prospect?.name || '';
-      } else if (sortBy === 'experience') {
-        valA = parseFloat(a.prospect?.total_experience) || 0;
-        valB = parseFloat(b.prospect?.total_experience) || 0;
-      } else {
-        valA = a[sortBy] || '';
-        valB = b[sortBy] || '';
-      }
-
-      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return NextResponse.json({ success: true, data: filteredMatches }, { headers: getCorsHeaders(req.headers.get('origin')) });
+    return NextResponse.json({ 
+      success: true, 
+      data: matches || [], 
+      count: count || 0,
+      stageCounts
+    }, { headers: getCorsHeaders(req.headers.get('origin')) });
 
   } catch (err) {
     console.error('CRM prospects GET failed:', err);

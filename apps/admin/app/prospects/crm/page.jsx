@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useContext } from 'react';
+import { supabase } from '../../../lib/supabase';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 import ResizableTable from '../../../components/ResizableTable';
 import StageTransitionModal from '../../../components/StageTransitionModal';
@@ -61,24 +62,18 @@ const renderTimeIdentified = (dateStr) => {
 
 export default function ProspectsCRMBoard() {
   const {
-    prospects: allProspects,
-    setProspects: setAllProspects,
-    refreshProspects,
     activeJobs,
+    users,
     loading: contextLoading,
     API_URL
   } = useContext(ProspectsContext);
 
-  const prospects = useMemo(() => {
-    return allProspects.filter(item => item.stage !== 'IDENTIFIED');
-  }, [allProspects]);
-
-  const setProspects = setAllProspects;
-  const fetchCRMProspects = refreshProspects;
-
-  const [usersLoading, setUsersLoading] = useState(true);
+  const [prospects, setProspects] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [stageCounts, setStageCounts] = useState({});
+  const [prospectsLoading, setProspectsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const loading = contextLoading || usersLoading || actionLoading;
+  const loading = contextLoading || prospectsLoading || actionLoading;
   const setLoading = setActionLoading;
 
   const [activeMatchId, setActiveMatchId] = useState(null);
@@ -90,10 +85,29 @@ export default function ProspectsCRMBoard() {
   const [selectedJobId, setSelectedJobId] = useState('all');
   const [selectedOwner, setSelectedOwner] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   
   const [selectedProspects, setSelectedProspects] = useState([]);
-  
   const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeStageTab, selectedJobId, selectedOwner]);
 
   // Load saved sorting preference on mount
   useEffect(() => {
@@ -139,36 +153,92 @@ export default function ProspectsCRMBoard() {
   const [bulkTags, setBulkTags] = useState('');
   const [bulkReason, setBulkReason] = useState('');
   const [executingBulk, setExecutingBulk] = useState(false);
-  const [users, setUsers] = useState([]);
   const [refreshSuccessCount, setRefreshSuccessCount] = useState(null);
 
-  // Load only admin users list on mount
-  useEffect(() => {
-    async function loadAdminUsers() {
-      try {
-        setUsersLoading(true);
-        const usersRes = await fetch(`${API_URL}/api/admin/users`, { credentials: 'include' }).catch(e => {
-          console.error("Failed to load admin users list in CRM:", e);
-          return null;
-        });
+  // Fetch candidates from backend
+  const fetchCRMProspects = async () => {
+    if (!API_URL) return;
+    try {
+      setProspectsLoading(true);
+      const offset = (currentPage - 1) * pageSize;
+      
+      let sortBy = 'created_at';
+      if (sortConfig.key === 'score') sortBy = 'score';
+      else if (sortConfig.key === 'name') sortBy = 'name';
+      else if (sortConfig.key === 'experience') sortBy = 'experience';
+      else if (sortConfig.key === 'duration') sortBy = 'duration';
+      else if (sortConfig.key === 'identified') sortBy = 'created_at';
 
-        if (usersRes) {
-          const usersResult = await usersRes.json();
-          if (usersResult.success && usersResult.data) {
-            const sortedUsers = usersResult.data
-              .filter(u => u.is_active)
-              .sort((a, b) => a.username.localeCompare(b.username));
-            setUsers(sortedUsers);
-          }
-        }
-      } catch (err) {
-        console.error("Error loading admin users:", err);
-      } finally {
-        setUsersLoading(false);
+      const sortOrder = sortConfig.direction;
+
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset),
+        sortBy,
+        sortOrder,
+        active: 'true'
+      });
+
+      if (activeStageTab) {
+        params.append('stage', activeStageTab);
+      } else {
+        params.append('stage', ACTIVE_STAGES.map(s => s.id).join(','));
       }
+
+      if (selectedJobId && selectedJobId !== 'all') {
+        params.append('jobId', selectedJobId);
+      }
+      if (selectedOwner && selectedOwner !== 'all') {
+        params.append('owner', selectedOwner);
+      }
+      if (debouncedSearchQuery) {
+        params.append('search', debouncedSearchQuery);
+      }
+
+      const res = await fetch(`${API_URL}/api/prospects?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
+      const result = await res.json();
+      if (result.success && result.data) {
+        setProspects(result.data);
+        setTotalItems(result.count || 0);
+        if (result.stageCounts) {
+          setStageCounts(result.stageCounts);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch CRM prospects:", err);
+    } finally {
+      setProspectsLoading(false);
     }
-    loadAdminUsers();
-  }, []);
+  };
+
+  useEffect(() => {
+    fetchCRMProspects();
+  }, [activeStageTab, selectedJobId, selectedOwner, debouncedSearchQuery, sortConfig, currentPage, API_URL]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!supabase) return;
+    const env = typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production';
+
+    const channel = supabase
+      .channel('crm-prospects-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prospect_matches' },
+        (payload) => {
+          console.log('Realtime crm update:', payload);
+          const itemEnv = payload.new?.environment || payload.old?.environment;
+          if (itemEnv && itemEnv !== env) return;
+
+          fetchCRMProspects();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeStageTab, selectedJobId, selectedOwner, debouncedSearchQuery, sortConfig, currentPage, API_URL]);
 
   const updateProspectStage = async (matchId, newStage, reasonText) => {
     try {
@@ -327,115 +397,9 @@ export default function ProspectsCRMBoard() {
     }
   };
 
-  // 1. Filter prospects globally based on all search criteria
-  const globallyFilteredProspects = useMemo(() => {
-    return prospects.filter(item => {
-      const matchesJob = selectedJobId === 'all' || item.job_id === selectedJobId || item.job?.id === selectedJobId;
-      const matchesOwner = selectedOwner === 'all' || item.owner === selectedOwner;
-      
-      let matchesSearch = true;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        
-        // 1. Basic profile & contact fields
-        const matchesProfile = (
-          item.prospect?.name?.toLowerCase().includes(q) ||
-          item.prospect?.latest_company?.toLowerCase().includes(q) ||
-          item.prospect?.latest_title?.toLowerCase().includes(q) ||
-          item.prospect?.functional_field?.toLowerCase().includes(q) ||
-          item.prospect?.city?.toLowerCase().includes(q) ||
-          item.prospect?.email?.toLowerCase().includes(q) ||
-          item.prospect?.phone?.toLowerCase().includes(q) ||
-          (Array.isArray(item.tags) && item.tags.some(t => t.toLowerCase().includes(q)))
-        );
-
-        if (matchesProfile) {
-          matchesSearch = true;
-        } else {
-          // 2. Search remarks (current notes or past timeline remarks)
-          const matchesCurrentRemarks = item.human_notes?.toLowerCase().includes(q);
-          const matchesPastRemarks = Array.isArray(item.past_remarks) && item.past_remarks.some(r => r.toLowerCase().includes(q));
-          
-          if (matchesCurrentRemarks || matchesPastRemarks) {
-            matchesSearch = true;
-          } else {
-            // 3. Search human_notes or past_remarks on ANY match for the same prospect
-            const prospectId = item.prospect?.id;
-            matchesSearch = prospectId ? prospects.some(otherMatch => 
-              otherMatch.prospect?.id === prospectId && 
-              (
-                otherMatch.human_notes?.toLowerCase().includes(q) ||
-                (Array.isArray(otherMatch.past_remarks) && otherMatch.past_remarks.some(r => r.toLowerCase().includes(q)))
-              )
-            ) : false;
-          }
-        }
-      }
-
-      return matchesJob && matchesOwner && matchesSearch;
-    });
-  }, [prospects, selectedJobId, selectedOwner, searchQuery]);
-
-  // 2. Stage Counts from globally filtered prospects
-  const stageCounts = useMemo(() => {
-    const counts = {};
-    ALL_STAGES.forEach(s => counts[s.id] = 0);
-    globallyFilteredProspects.forEach(p => {
-      if (counts[p.stage] !== undefined) counts[p.stage]++;
-    });
-    return counts;
-  }, [globallyFilteredProspects]);
-
-  // 3. Tab-filtered and Sorted Prospects
-  const displayProspects = useMemo(() => {
-    const inStage = globallyFilteredProspects.filter(p => p.stage === activeStageTab);
-    
-    return inStage.sort((a, b) => {
-      const aName = a.prospect?.name || '';
-      const bName = b.prospect?.name || '';
-      const aCompany = a.prospect?.latest_company || '';
-      const bCompany = b.prospect?.latest_company || '';
-      const aScore = a.manual_score || a.ai_score || 0;
-      const bScore = b.manual_score || b.ai_score || 0;
-      const aDate = new Date(a.lifecycle_timestamps?.[a.stage] || a.created_at).getTime();
-      const bDate = new Date(b.lifecycle_timestamps?.[b.stage] || b.created_at).getTime();
-
-      let comparison = 0;
-      switch (sortConfig.key) {
-        case 'name': comparison = aName.localeCompare(bName); break;
-        case 'company': comparison = aCompany.localeCompare(bCompany); break;
-        case 'score': comparison = aScore - bScore; break;
-        case 'identified': {
-          const aIdentified = new Date(a.created_at || 0).getTime();
-          const bIdentified = new Date(b.created_at || 0).getTime();
-          comparison = aIdentified - bIdentified;
-          break;
-        }
-        case 'duration': comparison = aDate - bDate; break;
-        default: comparison = 0;
-      }
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
-  }, [globallyFilteredProspects, activeStageTab, sortConfig]);
-
-  // Pagination Config
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 25;
-  const totalItems = displayProspects.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-
-  const paginatedProspects = useMemo(() => {
-    return displayProspects.slice(startIndex, endIndex);
-  }, [displayProspects, startIndex, endIndex]);
-
-  // Reset page when active stage tab or filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeStageTab, selectedJobId, selectedOwner, searchQuery]);
-
-  const uniqueOwners = Array.from(new Set(prospects.map(p => p.owner).filter(Boolean)));
+  const displayProspects = prospects;
+  const paginatedProspects = prospects;
+  const uniqueOwners = users.map(u => u.username);
 
   const handleCardSelectionToggle = (matchId) => {
     if (selectedProspects.includes(matchId)) setSelectedProspects(selectedProspects.filter(id => id !== matchId));

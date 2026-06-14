@@ -1,27 +1,29 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { createContext, useState, useEffect } from 'react';
 
 export const ProspectsContext = createContext(null);
 
 export default function ProspectsLayout({ children }) {
   const pathname = usePathname();
-  const [prospects, setProspects] = useState([]);
   const [activeJobs, setActiveJobs] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
-  // 1. Fetch initial shared data
+  // Fetch shared static metadata (active jobs & admin users)
   useEffect(() => {
-    async function loadData() {
+    async function loadSharedData() {
       try {
         setLoading(true);
-        const [jobsRes, prospectsRes] = await Promise.all([
+        const [jobsRes, usersRes] = await Promise.all([
           fetch(`${API_URL}/api/jobs?status=active&admin=true`, { credentials: 'include', cache: 'no-store' }),
-          fetch(`${API_URL}/api/prospects`, { credentials: 'include', cache: 'no-store' })
+          fetch(`${API_URL}/api/admin/users`, { credentials: 'include', cache: 'no-store' }).catch(e => {
+            console.error("Failed to load admin users in layout:", e);
+            return null;
+          })
         ]);
 
         const jobsResult = await jobsRes.json();
@@ -29,137 +31,23 @@ export default function ProspectsLayout({ children }) {
           setActiveJobs(jobsResult.data);
         }
 
-        const prospectsResult = await prospectsRes.json();
-        if (prospectsResult.success && prospectsResult.data) {
-          setProspects(prospectsResult.data);
+        if (usersRes) {
+          const usersResult = await usersRes.json();
+          if (usersResult.success && usersResult.data) {
+            const sortedUsers = usersResult.data
+              .filter(u => u.is_active)
+              .sort((a, b) => a.username.localeCompare(b.username));
+            setUsers(sortedUsers);
+          }
         }
       } catch (err) {
-        console.error("Failed to load global prospects context:", err);
+        console.error("Failed to load global prospects layout context:", err);
       } finally {
         setLoading(false);
       }
     }
-    loadData();
-  }, []);
-
-  // Helper function to force full refetch of prospects
-  const refreshProspects = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/prospects`, { credentials: 'include', cache: 'no-store' });
-      const result = await res.json();
-      if (result.success && result.data) {
-        setProspects(result.data);
-      }
-    } catch (err) {
-      console.error("Failed to refresh prospects context:", err);
-    }
-  };
-
-  // 2. Persistent Supabase Realtime Subscription (Single channel listener)
-  const prospectsRef = useRef(prospects);
-  const activeJobsRef = useRef(activeJobs);
-
-  useEffect(() => {
-    prospectsRef.current = prospects;
-  }, [prospects]);
-
-  useEffect(() => {
-    activeJobsRef.current = activeJobs;
-  }, [activeJobs]);
-
-  useEffect(() => {
-    if (!supabase) return;
-    const channel = supabase
-      .channel('global-prospects-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'prospect_matches' },
-        async (payload) => {
-          console.log('Realtime prospect_matches event:', payload);
-          
-          // Determine environment dynamically from loaded prospects
-          const currentProspects = prospectsRef.current;
-          const activeEnv = currentProspects.length > 0 ? currentProspects[0].environment : null;
-          const itemEnv = payload.new?.environment || payload.old?.environment;
-          
-          const currentEnv = activeEnv || (typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production');
-          
-          if (itemEnv && itemEnv !== currentEnv) return;
-
-          if (payload.eventType === 'DELETE') {
-            setProspects(prev => prev.filter(p => p.id !== payload.old.id));
-          } else if (payload.eventType === 'INSERT') {
-            try {
-              const res = await fetch(`${API_URL}/api/prospects/sourcing/${payload.new.id}`, { credentials: 'include', cache: 'no-store' });
-              const result = await res.json();
-              if (result.success && result.data) {
-                const newMatch = result.data;
-                setProspects(prev => {
-                  if (prev.some(p => p.id === newMatch.id)) return prev;
-                  return [...prev, newMatch];
-                });
-              }
-            } catch (err) {
-              console.error('Failed to fetch new realtime prospect match:', err);
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            const matchId = payload.new.id;
-            let exists = false;
-            setProspects(prev => {
-              const index = prev.findIndex(p => p.id === matchId);
-              if (index !== -1) {
-                exists = true;
-                return prev.map(p => p.id === matchId ? {
-                  ...p,
-                  ...payload.new,
-                  job: activeJobsRef.current.find(j => j.id === payload.new.job_id) || p.job
-                } : p);
-              }
-              return prev;
-            });
-
-            if (!exists) {
-              try {
-                const res = await fetch(`${API_URL}/api/prospects/sourcing/${matchId}`, { credentials: 'include', cache: 'no-store' });
-                const result = await res.json();
-                if (result.success && result.data) {
-                  setProspects(prev => {
-                    if (prev.some(p => p.id === matchId)) return prev;
-                    return [...prev, result.data];
-                  });
-                }
-              } catch (err) {
-                console.error('Failed to fetch updated realtime prospect match:', err);
-              }
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'prospects' },
-        (payload) => {
-          console.log('Realtime prospects event:', payload);
-          setProspects(prev => prev.map(p => {
-            if (p.prospect?.id === payload.new.id) {
-              return {
-                ...p,
-                prospect: {
-                  ...p.prospect,
-                  ...payload.new
-                }
-              };
-            }
-            return p;
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+    loadSharedData();
+  }, [API_URL]);
 
   const isTabActive = (path) => pathname.startsWith(path);
 
@@ -172,7 +60,7 @@ export default function ProspectsLayout({ children }) {
   };
 
   return (
-    <ProspectsContext.Provider value={{ prospects, setProspects, refreshProspects, activeJobs, loading, API_URL }}>
+    <ProspectsContext.Provider value={{ activeJobs, setActiveJobs, users, loading, API_URL }}>
       <div className="space-y-6">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-5">

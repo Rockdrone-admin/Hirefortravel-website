@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useContext } from 'react';
+import { supabase } from '../../../lib/supabase';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 import ResizableTable from '../../../components/ResizableTable';
 import StageTransitionModal from '../../../components/StageTransitionModal';
@@ -28,10 +29,8 @@ const renderTimeIdentified = (dateStr) => {
 
 export default function AISourcingPage() {
   const {
-    prospects: allProspects,
-    setProspects: setAllProspects,
-    refreshProspects,
     activeJobs,
+    setActiveJobs,
     loading: contextLoading,
     API_URL
   } = useContext(ProspectsContext);
@@ -187,18 +186,95 @@ export default function AISourcingPage() {
     }
   }, [sourcingProgress, sourcingLoading, selectedJobs.length]);
 
-  const prospects = useMemo(() => {
-    return allProspects.filter(item => item.stage === 'IDENTIFIED');
-  }, [allProspects]);
-
-  const setProspects = setAllProspects;
-  const prospectsLoading = contextLoading;
+  const [prospects, setProspects] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [prospectsLoading, setProspectsLoading] = useState(true);
   const [selectedProspects, setSelectedProspects] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
 
-  // Filters & Sorting Config
   const [minScore, setMinScore] = useState(0);
   const [filterJobId, setFilterJobId] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'identified', direction: 'desc' });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterJobId, minScore]);
+
+  // Fetch candidates from backend
+  const fetchIdentifiedProspects = async () => {
+    if (!API_URL) return;
+    try {
+      setProspectsLoading(true);
+      const offset = (currentPage - 1) * pageSize;
+      
+      let sortBy = 'created_at';
+      if (sortConfig.key === 'score') sortBy = 'score';
+      else if (sortConfig.key === 'name') sortBy = 'name';
+      else if (sortConfig.key === 'identified') sortBy = 'created_at';
+
+      const sortOrder = sortConfig.direction;
+
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset),
+        sortBy,
+        sortOrder,
+        stage: 'IDENTIFIED'
+      });
+
+      if (filterJobId && filterJobId !== 'all') {
+        params.append('jobId', filterJobId);
+      }
+      if (minScore > 0) {
+        params.append('minScore', String(minScore));
+      }
+
+      const res = await fetch(`${API_URL}/api/prospects?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
+      const result = await res.json();
+      if (result.success && result.data) {
+        setProspects(result.data);
+        setTotalItems(result.count || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch identified prospects:", err);
+    } finally {
+      setProspectsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchIdentifiedProspects();
+  }, [filterJobId, minScore, sortConfig, currentPage, API_URL]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!supabase) return;
+    const env = typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production';
+
+    const channel = supabase
+      .channel('sourcing-prospects-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prospect_matches' },
+        (payload) => {
+          console.log('Realtime sourcing update:', payload);
+          const itemEnv = payload.new?.environment || payload.old?.environment;
+          if (itemEnv && itemEnv !== env) return;
+
+          fetchIdentifiedProspects();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [filterJobId, minScore, sortConfig, currentPage, API_URL]);
 
   // Load saved sorting preference on mount
   useEffect(() => {
@@ -282,7 +358,7 @@ export default function AISourcingPage() {
     }
   }, [activeJobs]);
 
-  const fetchIdentifiedProspects = refreshProspects;
+
 
   // 2. Poll sourcing run progress
   useEffect(() => {
@@ -488,51 +564,8 @@ export default function AISourcingPage() {
     }
   };
 
-  // Filter & Sort math (useMemo optimized)
-  const filteredProspects = useMemo(() => {
-    const list = prospects.filter(p => {
-      const matchesScore = (p.manual_score || p.ai_score || 0) >= minScore;
-      const matchesJob = filterJobId === 'all' || p.job_id === filterJobId || p.job?.id === filterJobId;
-      return matchesScore && matchesJob;
-    });
-
-    list.sort((a, b) => {
-      let comparison = 0;
-      if (sortConfig.key === 'score') {
-        const scoreA = a.manual_score || a.ai_score || 0;
-        const scoreB = b.manual_score || b.ai_score || 0;
-        comparison = scoreA - scoreB;
-      } else if (sortConfig.key === 'identified') {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        comparison = dateA - dateB;
-      } else if (sortConfig.key === 'name') {
-        const nameA = a.prospect?.name || '';
-        const nameB = b.prospect?.name || '';
-        comparison = nameA.localeCompare(nameB);
-      }
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
-
-    return list;
-  }, [prospects, minScore, filterJobId, sortConfig]);
-
-  // Pagination Configuration
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 25;
-  const totalItems = filteredProspects.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-
-  const paginatedProspects = useMemo(() => {
-    return filteredProspects.slice(startIndex, endIndex);
-  }, [filteredProspects, startIndex, endIndex]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [minScore, filterJobId]);
+  const filteredProspects = prospects;
+  const paginatedProspects = prospects;
 
   return (
     <div className="space-y-6">

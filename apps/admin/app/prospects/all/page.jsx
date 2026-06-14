@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useContext, useMemo } from 'react';
+import { supabase } from '../../../lib/supabase';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 import ResizableTable from '../../../components/ResizableTable';
 import StageTransitionModal from '../../../components/StageTransitionModal';
@@ -61,52 +62,124 @@ const getStageBadge = (stage) => {
 
 export default function ProspectsDirectory() {
   const {
-    prospects: allProspects,
-    setProspects: setAllProspects,
-    refreshProspects,
     activeJobs,
+    users,
     loading: contextLoading,
     API_URL
   } = useContext(ProspectsContext);
 
-  const loading = contextLoading;
-  const fetchAllProspects = refreshProspects;
+  const [prospects, setProspects] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [prospectsLoading, setProspectsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const loading = contextLoading || prospectsLoading || actionLoading;
+  const setLoading = setActionLoading;
+
   const [activeMatchId, setActiveMatchId] = useState(null);
 
   // Add Prospect Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addingProspect, setAddingProspect] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(false);
 
-  // Load only admin users list on mount
+  // Filters & Sorting Config
+  const [selectedJobId, setSelectedJobId] = useState('all');
+  const [selectedStage, setSelectedStage] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [selectedProspects, setSelectedProspects] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: 'identified', direction: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  // Debounce search query
   useEffect(() => {
-    async function loadAdminUsers() {
-      if (!API_URL) return;
-      try {
-        setUsersLoading(true);
-        const usersRes = await fetch(`${API_URL}/api/admin/users`, { credentials: 'include' }).catch(e => {
-          console.error("Failed to load admin users list in Directory:", e);
-          return null;
-        });
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
-        if (usersRes) {
-          const usersResult = await usersRes.json();
-          if (usersResult.success && usersResult.data) {
-            const sortedUsers = usersResult.data
-              .filter(u => u.is_active)
-              .sort((a, b) => a.username.localeCompare(b.username));
-            setUsers(sortedUsers);
-          }
-        }
-      } catch (err) {
-        console.error("Error loading admin users:", err);
-      } finally {
-        setUsersLoading(false);
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedJobId, selectedStage]);
+
+  // Fetch candidates from backend
+  const fetchAllProspects = async () => {
+    if (!API_URL) return;
+    try {
+      setProspectsLoading(true);
+      const offset = (currentPage - 1) * pageSize;
+      
+      let sortBy = 'created_at';
+      if (sortConfig.key === 'score') sortBy = 'score';
+      else if (sortConfig.key === 'name') sortBy = 'name';
+      else if (sortConfig.key === 'identified') sortBy = 'created_at';
+
+      const sortOrder = sortConfig.direction;
+
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset),
+        sortBy,
+        sortOrder
+      });
+
+      if (selectedStage && selectedStage !== 'all') {
+        params.append('stage', selectedStage);
       }
+      if (selectedJobId && selectedJobId !== 'all') {
+        params.append('jobId', selectedJobId);
+      }
+      if (debouncedSearchQuery) {
+        params.append('search', debouncedSearchQuery);
+      }
+
+      const res = await fetch(`${API_URL}/api/prospects?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
+      const result = await res.json();
+      if (result.success && result.data) {
+        setProspects(result.data);
+        setTotalItems(result.count || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch all prospects:", err);
+    } finally {
+      setProspectsLoading(false);
     }
-    loadAdminUsers();
-  }, [API_URL]);
+  };
+
+  useEffect(() => {
+    fetchAllProspects();
+  }, [selectedJobId, selectedStage, debouncedSearchQuery, sortConfig, currentPage, API_URL]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!supabase) return;
+    const env = typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production';
+
+    const channel = supabase
+      .channel('all-prospects-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prospect_matches' },
+        (payload) => {
+          console.log('Realtime directory update:', payload);
+          const itemEnv = payload.new?.environment || payload.old?.environment;
+          if (itemEnv && itemEnv !== env) return;
+
+          fetchAllProspects();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedJobId, selectedStage, debouncedSearchQuery, sortConfig, currentPage, API_URL]);
 
   const handleAddManualProspect = async (payload) => {
     try {
@@ -131,13 +204,6 @@ export default function ProspectsDirectory() {
     }
   };
 
-  // Filters & Sorting Config
-  const [selectedJobId, setSelectedJobId] = useState('all');
-  const [selectedStage, setSelectedStage] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProspects, setSelectedProspects] = useState([]);
-  const [sortConfig, setSortConfig] = useState({ key: 'identified', direction: 'desc' });
-
   // Columns for ResizableTable
   const columns = [
     { key: 'name', label: 'Candidate', sortable: true, sortKey: 'name', defaultWidth: 180 },
@@ -148,20 +214,6 @@ export default function ProspectsDirectory() {
     { key: 'remarks', label: 'Latest Remarks', sortable: false, defaultWidth: 280 },
     { key: 'stage', label: 'Current Stage', sortable: false, defaultWidth: 160, headerClassName: 'text-center' }
   ];
-
-  // Load saved sorting preference on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedSort = localStorage.getItem('hirefortravel_all_sortConfig');
-      if (savedSort) {
-        try {
-          setSortConfig(JSON.parse(savedSort));
-        } catch (e) {
-          console.error("Failed to parse saved sorting config", e);
-        }
-      }
-    }
-  }, []);
 
   const handleSort = (key) => {
     let direction = 'desc';
@@ -174,7 +226,7 @@ export default function ProspectsDirectory() {
   };
 
   // Stage transition modal states
-  const [transitionDetails, setTransitionDetails] = useState(null); // { matchId, currentStage, candidateName, currentJobId }
+  const [transitionDetails, setTransitionDetails] = useState(null);
 
   // Bulk restore states
   const [executingBulk, setExecutingBulk] = useState(false);
@@ -261,7 +313,7 @@ export default function ProspectsDirectory() {
 
     // Filter only those selected prospects that are in ARCHIVED stage
     const archivedSelected = selectedProspects.filter(id => {
-      const p = allProspects.find(item => item.id === id);
+      const p = prospects.find(item => item.id === id);
       return p && p.stage === 'ARCHIVED';
     });
 
@@ -289,7 +341,7 @@ export default function ProspectsDirectory() {
       alert(`Successfully restored ${archivedSelected.length} prospects to Connection Request stage!`);
       
       // Update local UI
-      setAllProspects(prev => prev.map(p => archivedSelected.includes(p.id) ? { ...p, stage: 'MATCHED', active_flag: true } : p));
+      setProspects(prev => prev.map(p => archivedSelected.includes(p.id) ? { ...p, stage: 'MATCHED', active_flag: true } : p));
       setSelectedProspects([]);
       setBulkReason('');
       setIsBulkOpen(false);
@@ -302,92 +354,12 @@ export default function ProspectsDirectory() {
   };
 
   // 4. Filters & Sorting Math (useMemo optimized)
-  const filteredProspects = useMemo(() => {
-    const list = allProspects.filter(item => {
-      const matchesJob = selectedJobId === 'all' || item.job_id === selectedJobId || item.job?.id === selectedJobId;
-      const matchesStage = selectedStage === 'all' || item.stage === selectedStage;
-      
-      let matchesSearch = true;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        
-        // 1. Basic profile & contact fields
-        const matchesProfile = (
-          item.prospect?.name?.toLowerCase().includes(q) ||
-          item.prospect?.latest_company?.toLowerCase().includes(q) ||
-          item.prospect?.latest_title?.toLowerCase().includes(q) ||
-          item.prospect?.functional_field?.toLowerCase().includes(q) ||
-          item.prospect?.city?.toLowerCase().includes(q) ||
-          item.prospect?.email?.toLowerCase().includes(q) ||
-          item.prospect?.phone?.toLowerCase().includes(q)
-        );
-
-        if (matchesProfile) {
-          matchesSearch = true;
-        } else {
-          // 2. Search remarks (current notes or past timeline remarks)
-          const matchesCurrentRemarks = item.human_notes?.toLowerCase().includes(q);
-          const matchesPastRemarks = Array.isArray(item.past_remarks) && item.past_remarks.some(r => r.toLowerCase().includes(q));
-          
-          if (matchesCurrentRemarks || matchesPastRemarks) {
-            matchesSearch = true;
-          } else {
-            // 3. Search human_notes or past_remarks on ANY match for the same prospect
-            const prospectId = item.prospect?.id;
-            matchesSearch = prospectId ? allProspects.some(otherMatch => 
-              otherMatch.prospect?.id === prospectId && 
-              (
-                otherMatch.human_notes?.toLowerCase().includes(q) ||
-                (Array.isArray(otherMatch.past_remarks) && otherMatch.past_remarks.some(r => r.toLowerCase().includes(q)))
-              )
-            ) : false;
-          }
-        }
-      }
-      return matchesJob && matchesStage && matchesSearch;
-    });
-
-    list.sort((a, b) => {
-      let comparison = 0;
-      if (sortConfig.key === 'score') {
-        const scoreA = a.manual_score || a.ai_score || 0;
-        const scoreB = b.manual_score || b.ai_score || 0;
-        comparison = scoreA - scoreB;
-      } else if (sortConfig.key === 'identified') {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        comparison = dateA - dateB;
-      } else if (sortConfig.key === 'name') {
-        const nameA = a.prospect?.name || '';
-        const nameB = b.prospect?.name || '';
-        comparison = nameA.localeCompare(nameB);
-      }
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
-
-    return list;
-  }, [allProspects, selectedJobId, selectedStage, searchQuery, sortConfig]);
-
-  // Pagination Config
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 25;
-  const totalItems = filteredProspects.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-
-  const paginatedProspects = useMemo(() => {
-    return filteredProspects.slice(startIndex, endIndex);
-  }, [filteredProspects, startIndex, endIndex]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedJobId, selectedStage, searchQuery]);
+  const filteredProspects = prospects;
+  const paginatedProspects = prospects;
 
   // Check if any selected prospects are archived to show the bulk restore option
   const selectedArchivedCount = selectedProspects.filter(id => {
-    const p = allProspects.find(item => item.id === id);
+    const p = prospects.find(item => item.id === id);
     return p && p.stage === 'ARCHIVED';
   }).length;
 
