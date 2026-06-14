@@ -17,7 +17,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
   const [profile, setProfile] = useState({});
   const [match, setMatch] = useState({});
   const [outreachDraft, setOutreachDraft] = useState('');
-  const [users, setUsers] = useState([]);
+  const users = context?.users || [];
   const [recruiterRemarks, setRecruiterRemarks] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showRefreshModal, setShowRefreshModal] = useState(false);
@@ -73,24 +73,7 @@ export default function ProspectDrawer({ matchId, onClose, onSaveSuccess }) {
     }
   };
 
-  // Load admin users list for recruiter owner assignment dropdown
-  useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const res = await fetch(`${API_URL}/api/admin/users`, { credentials: 'include' });
-        const result = await res.json();
-        if (result.success && result.data) {
-          const sortedUsers = result.data
-            .filter(u => u.is_active)
-            .sort((a, b) => a.username.localeCompare(b.username));
-          setUsers(sortedUsers);
-        }
-      } catch (err) {
-        console.error("Failed to load admin users inside ProspectDrawer:", err);
-      }
-    }
-    fetchUsers();
-  }, []);
+
 
   // Load dynamic weighting configuration factors
   useEffect(() => {

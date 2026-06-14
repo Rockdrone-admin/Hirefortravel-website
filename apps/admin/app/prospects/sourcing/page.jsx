@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useContext } from 'react';
+import { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 import ResizableTable from '../../../components/ResizableTable';
@@ -188,9 +188,24 @@ export default function AISourcingPage() {
     }
   }, [sourcingProgress, sourcingLoading, selectedJobs.length]);
 
-  const [prospects, setProspects] = useState([]);
-  const [totalItems, setTotalItems] = useState(0);
-  const [prospectsLoading, setProspectsLoading] = useState(true);
+  const getInitialCache = () => {
+    if (!prospectsCache) return null;
+    const initialParams = new URLSearchParams({
+      limit: '25',
+      offset: '0',
+      sortBy: 'created_at',
+      sortOrder: 'desc',
+      stage: 'IDENTIFIED'
+    });
+    const key = `sourcing_${initialParams.toString()}`;
+    return prospectsCache[key];
+  };
+
+  const initialCached = getInitialCache();
+
+  const [prospects, setProspects] = useState(initialCached ? initialCached.data : []);
+  const [totalItems, setTotalItems] = useState(initialCached ? initialCached.count : 0);
+  const [prospectsLoading, setProspectsLoading] = useState(initialCached ? false : true);
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [selectedProspects, setSelectedProspects] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -270,6 +285,11 @@ export default function AISourcingPage() {
     }
   };
 
+  const fetchRef = useRef(fetchIdentifiedProspects);
+  useEffect(() => {
+    fetchRef.current = fetchIdentifiedProspects;
+  });
+
   useEffect(() => {
     fetchIdentifiedProspects();
   }, [filterJobId, minScore, sortConfig, currentPage, API_URL]);
@@ -279,8 +299,9 @@ export default function AISourcingPage() {
     if (!supabase) return;
     const env = typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production';
 
+    const channelId = `sourcing-realtime-${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel('sourcing-prospects-realtime')
+      .channel(channelId)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'prospect_matches' },
@@ -290,15 +311,17 @@ export default function AISourcingPage() {
           if (itemEnv && itemEnv !== env) return;
 
           setProspectsCache({});
-          fetchIdentifiedProspects(true);
+          fetchRef.current(true);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`Realtime Sourcing status (${channelId}):`, status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [filterJobId, minScore, sortConfig, currentPage, API_URL]);
+  }, []);
 
   // Load saved sorting preference on mount
   useEffect(() => {

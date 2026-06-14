@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useContext } from 'react';
+import { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import ProspectDrawer from '../../../components/ProspectDrawer';
 import ResizableTable from '../../../components/ResizableTable';
@@ -70,10 +70,26 @@ export default function ProspectsCRMBoard() {
     setProspectsCache
   } = useContext(ProspectsContext);
 
-  const [prospects, setProspects] = useState([]);
-  const [totalItems, setTotalItems] = useState(0);
-  const [stageCounts, setStageCounts] = useState({});
-  const [prospectsLoading, setProspectsLoading] = useState(true);
+  const getInitialCache = () => {
+    if (!prospectsCache) return null;
+    const initialParams = new URLSearchParams({
+      limit: '25',
+      offset: '0',
+      sortBy: 'score',
+      sortOrder: 'desc',
+      active: 'true',
+      stage: 'MATCHED'
+    });
+    const key = `crm_${initialParams.toString()}`;
+    return prospectsCache[key];
+  };
+
+  const initialCached = getInitialCache();
+
+  const [prospects, setProspects] = useState(initialCached ? initialCached.data : []);
+  const [totalItems, setTotalItems] = useState(initialCached ? initialCached.count : 0);
+  const [stageCounts, setStageCounts] = useState(initialCached ? initialCached.stageCounts : {});
+  const [prospectsLoading, setProspectsLoading] = useState(initialCached ? false : true);
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const loading = contextLoading || prospectsLoading || actionLoading;
@@ -237,6 +253,11 @@ export default function ProspectsCRMBoard() {
     }
   };
 
+  const fetchRef = useRef(fetchCRMProspects);
+  useEffect(() => {
+    fetchRef.current = fetchCRMProspects;
+  });
+
   useEffect(() => {
     fetchCRMProspects();
   }, [activeStageTab, selectedJobId, selectedOwner, debouncedSearchQuery, sortConfig, currentPage, API_URL]);
@@ -246,8 +267,9 @@ export default function ProspectsCRMBoard() {
     if (!supabase) return;
     const env = typeof window !== 'undefined' && (window.location.host.includes('dev') || window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) ? 'development' : 'production';
 
+    const channelId = `crm-realtime-${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel('crm-prospects-realtime')
+      .channel(channelId)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'prospect_matches' },
@@ -257,15 +279,17 @@ export default function ProspectsCRMBoard() {
           if (itemEnv && itemEnv !== env) return;
 
           setProspectsCache({});
-          fetchCRMProspects(true);
+          fetchRef.current(true);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`Realtime CRM status (${channelId}):`, status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeStageTab, selectedJobId, selectedOwner, debouncedSearchQuery, sortConfig, currentPage, API_URL]);
+  }, []);
 
   const updateProspectStage = async (matchId, newStage, reasonText) => {
     try {
